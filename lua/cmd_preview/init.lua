@@ -151,17 +151,17 @@ local function command_preview(opts, preview_ns, preview_buf)
     cached_lines = vim.api.nvim_buf_get_lines(bufnr, range[1], range[2], false)
   end
   -- Clear the scratch buffer
-  vim.api.nvim_buf_set_lines(scratch_buf, range[1], range[2], false, cached_lines)
+  vim.api.nvim_buf_set_lines(scratch_buf, 0, -1, false, cached_lines)
 
-  local range_string = #range == 2 and ("%s,%s"):format(range[1] + 1, range[2]) or string(range[1] + 1)
   local cmd = {
     cmd = "bufdo",
-    args = { ("%s%s %s"):format(range_string, opts.cmd, opts.args) },
+    -- Use 1,$ as a range to apply the command to the entire scratch buffer
+    args = { ("1,$%s %s"):format(opts.cmd, opts.args) },
     range = { scratch_buf },
   }
   -- Run the normal mode command and get the updated buffer contents
   vim.api.nvim_cmd(cmd, {})
-  local updated_lines = vim.api.nvim_buf_get_lines(scratch_buf, range[1], range[2], false) or {}
+  local updated_lines = vim.api.nvim_buf_get_lines(scratch_buf, 0, -1, false) or {}
 
   -- Update the original buffer
   vim.api.nvim_set_current_buf(bufnr)
@@ -172,7 +172,7 @@ local function command_preview(opts, preview_ns, preview_buf)
   local edits = get_levenshtein_edits(a, b)
 
   for _, hl in ipairs(edits_to_hl_positions(b, edits)) do
-    vim.api.nvim_buf_add_highlight(bufnr, preview_ns, "Substitute", hl.line, hl.start_col, hl.end_col)
+    vim.api.nvim_buf_add_highlight(bufnr, preview_ns, "Substitute", hl.line + range[1], hl.start_col, hl.end_col)
   end
   return 2
 end
