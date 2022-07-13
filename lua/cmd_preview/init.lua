@@ -6,7 +6,7 @@ M.default_config = {
   hl_group = "Substitute",
 }
 
-local scratch_buf, cached_lines, err
+local scratch_buf, cached_lines
 
 -- Returns a list of insertion and replacement operations
 -- that turn the first string into the second one.
@@ -133,43 +133,46 @@ M._edits_to_hl_positions = edits_to_hl_positions
 
 -- Called when the user is still typing the command or the command arguments
 local function command_preview(opts, preview_ns, preview_buf)
+  -- TODO: don't ignore preview_buf
   vim.v.errmsg = ""
   if opts.args:find("^%s*$") then
     return
   end
 
   local bufnr = vim.api.nvim_get_current_buf()
-  if not scratch_buf then
-    scratch_buf = vim.api.nvim_create_buf(true, true)
-    cached_lines = vim.api.nvim_buf_get_lines(bufnr, opts.line1 - 1, opts.line2, false)
-  else
-    -- Clear the scratch buffer
-    vim.api.nvim_buf_set_lines(scratch_buf, 0, -1, false, cached_lines)
+  local range = { opts.line1 - 1, opts.line2 }
+  if not range[1] then
+    vim.v.errmsg = "No line1 range provided"
+    return
   end
 
-  local range = opts.range == 2 and ("%s,%s"):format(opts.line1, opts.line2)
-    or opts.range == 1 and string(opts.line1)
-    or ""
+  if not scratch_buf then
+    scratch_buf = vim.api.nvim_create_buf(true, true)
+    cached_lines = vim.api.nvim_buf_get_lines(bufnr, range[1], range[2], false)
+  end
+  -- Clear the scratch buffer
+  vim.api.nvim_buf_set_lines(scratch_buf, range[1], range[2], false, cached_lines)
 
+  local range_string = #range == 2 and ("%s,%s"):format(range[1] + 1, range[2]) or string(range[1] + 1)
   local cmd = {
     cmd = "bufdo",
-    args = { ("%s%s %s"):format(range, opts.cmd, opts.args) },
+    args = { ("%s%s %s"):format(range_string, opts.cmd, opts.args) },
     range = { scratch_buf },
   }
   -- Run the normal mode command and get the updated buffer contents
   vim.api.nvim_cmd(cmd, {})
-  -- set_error(("%s%s %s"):format(range, opts.cmd, opts.args))
-  local updated_lines = vim.api.nvim_buf_get_lines(scratch_buf, opts.line1 - 1, opts.line2, false) or {}
+  local updated_lines = vim.api.nvim_buf_get_lines(scratch_buf, range[1], range[2], false) or {}
+
   -- Update the original buffer
   vim.api.nvim_set_current_buf(bufnr)
-  vim.api.nvim_buf_set_lines(bufnr, opts.line1 - 1, opts.line2, false, updated_lines)
+  vim.api.nvim_buf_set_lines(bufnr, range[1], range[2], false, updated_lines)
 
   local a = table.concat(cached_lines, "\n")
   local b = table.concat(updated_lines, "\n")
   local edits = get_levenshtein_edits(a, b)
 
   for _, hl in ipairs(edits_to_hl_positions(b, edits)) do
-    vim.api.nvim_buf_add_highlight(bufnr, preview_ns, "Substitute", hl.line, hl.start_col - 1, hl.end_col)
+    vim.api.nvim_buf_add_highlight(bufnr, preview_ns, "Substitute", hl.line, hl.start_col, hl.end_col)
   end
   return 2
 end
@@ -220,6 +223,19 @@ M.setup = function(user_config)
 
   config = vim.tbl_deep_extend("force", M.default_config, user_config or {})
   create_user_commands(config.commands)
+
+  local id = vim.api.nvim_create_augroup("command_preview.nvim", { clear = true })
+  -- We need to be able to tell when the command was cancelled so the buffer lines are refetched next time.
+  vim.api.nvim_create_autocmd({ "CmdLineLeave" }, {
+    group = id,
+    -- Schedule wrap to run after a potential command execution
+    callback = vim.schedule_wrap(function()
+      if scratch_buf then
+        vim.api.nvim_buf_delete(scratch_buf, {})
+        scratch_buf = nil
+      end
+    end),
+  })
 end
 
 return M
