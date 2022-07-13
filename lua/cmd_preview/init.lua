@@ -8,6 +8,46 @@ M.default_config = {
 
 local scratch_buf, cached_lines
 
+-- Strips the common prefix and suffix from the two strings
+-- and returns the updated strings and start position.
+local function strip_common(str_a, str_b)
+  local len_a = #str_a
+  local len_b = #str_b
+
+  -- Strip common prefix
+  local new_start
+  for i = 1, math.max(len_a, len_b) do
+    if str_a:sub(i, i) == str_b:sub(i, i) then
+      new_start = i
+    else
+      break
+    end
+  end
+
+  if new_start then
+    str_a = str_a:sub(new_start + 1)
+    str_b = str_b:sub(new_start + 1)
+    len_a = len_a - new_start
+    len_b = len_b - new_start
+  end
+
+  -- Strip common suffix
+  local end_offset
+  for i = 0, math.min(len_a, len_b) do
+    if str_a:sub(len_a - i, len_a - i) == str_b:sub(len_b - i, len_b - i) then
+      end_offset = i + 1
+    else
+      break
+    end
+  end
+
+  if end_offset then
+    str_a = str_a:sub(1, len_a - end_offset)
+    str_b = str_b:sub(1, len_b - end_offset)
+  end
+  return str_a, str_b, new_start or 0
+end
+
 -- Returns a list of insertion and replacement operations
 -- that turn the first string into the second one.
 local function get_levenshtein_edits(str_a, str_b)
@@ -127,6 +167,7 @@ local edits_to_hl_positions = function(updated_lines, edits)
 end
 
 -- Expose functions to tests
+M._strip_common = strip_common
 M._get_levenshtein_edits = get_levenshtein_edits
 M._idx_to_text_pos = idx_to_text_pos
 M._edits_to_hl_positions = edits_to_hl_positions
@@ -169,10 +210,23 @@ local function command_preview(opts, preview_ns, preview_buf)
 
   local a = table.concat(cached_lines, "\n")
   local b = table.concat(updated_lines, "\n")
+  local new_start
+  a, b, new_start = strip_common(a, b)
   local edits = get_levenshtein_edits(a, b)
+  -- new_start = 0
 
   for _, hl in ipairs(edits_to_hl_positions(b, edits)) do
-    vim.api.nvim_buf_add_highlight(bufnr, preview_ns, "Substitute", hl.line + range[1], hl.start_col, hl.end_col)
+    vim.v.errmsg = "TEST" .. new_start .. " pos " .. hl.start_col + new_start.. hl.end_col + new_start
+    vim.api.nvim_buf_add_highlight(
+      bufnr,
+      preview_ns,
+      "Substitute",
+      -- TODO: should do line-wise prefix / suffix computation
+      -- TODO: can't the line number change too?
+      hl.line + range[1],
+      hl.start_col + new_start,
+      hl.end_col + new_start
+    )
   end
   return 2
 end
