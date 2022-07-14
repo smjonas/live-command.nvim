@@ -1,16 +1,5 @@
 local cmd_preview = require("cmd_preview")
 
-local measure_time = function(f)
-  return function()
-    local start_s, start_us = vim.loop.gettimeofday()
-    f()
-    local end_s, end_us = vim.loop.gettimeofday()
-    local start_ms = start_s * 1000.0 + start_us / 1000.0
-    local end_ms = end_s * 1000.0 + end_us / 1000.0
-    print(("Took %d ms."):format(end_ms - start_ms))
-  end
-end
-
 describe("Stripping common prefix and suffix", function()
   it("works", function()
     local new_a, new_b, new_start = cmd_preview._strip_common("xxxAyy", "xxxabcy")
@@ -18,6 +7,17 @@ describe("Stripping common prefix and suffix", function()
     assert.are_same("abc", new_b)
     -- 0-indexed
     assert.are_same(3, new_start)
+  end)
+
+  it("accounts for number of skipped lines by adjusting new_start", function()
+    local new_a, new_b, new_start, skipped_lines_count =
+      cmd_preview._strip_common("line_1\nline_2\nL", "line_1\nline_2\nLine_3\n")
+
+    assert.are_same("", new_a)
+    assert.are_same("ine_3\n", new_b)
+    -- 0-indexed, this is the column offset in the first line
+    assert.are_same(1, new_start)
+    assert.are_same(2, skipped_lines_count)
   end)
 
   it("returns correct start_index when no common prefix or suffix", function()
@@ -45,6 +45,13 @@ describe("Levenshtein edits", function()
     local actual = cmd_preview._get_levenshtein_edits("ad", "abcd")
     assert.are_same({
       { type = "insertion", start_pos = 2, end_pos = 3 },
+    }, actual)
+  end)
+
+  it("works when first string is empty", function()
+    local actual = cmd_preview._get_levenshtein_edits("", "ab")
+    assert.are_same({
+      { type = "insertion", start_pos = 1, end_pos = 2 },
     }, actual)
   end)
 
@@ -77,38 +84,12 @@ describe("Levenshtein edits", function()
       { type = "deletion", start_pos = 2, end_pos = 3 },
     }, actual)
   end)
-
-  it(
-    "performance test",
-    measure_time(function()
-      local a = ("A"):rep(20000)
-      local b = ("B"):rep(20000)
-      local _, _ = cmd_preview._get_levenshtein_edits(a, b)
-    end)
-  )
-
-  it(
-    "performance test (common prefix and suffix)",
-    measure_time(function()
-      local a = ("A"):rep(10000) .. "a" .. ("B"):rep(10000)
-      local b = ("A"):rep(10000) .. "b" .. ("B"):rep(10000)
-      local edits, matrix = cmd_preview._get_levenshtein_edits(a, b)
-
-      assert.are_same({
-        { type = "replacement", start_pos = 10001, end_pos = 10002 },
-      }, edits)
-      assert.are_same({
-        { [0] = 0, 1 },
-        { [0] = 1, 1 },
-      }, matrix)
-    end)
-  )
 end)
 
-describe("Levenshtein edits to highlight positions", function()
+describe("Get multiline highlights from Levenshtein edits", function()
   it("(index to text position)", function()
     local text = "line1\nline2"
-    -- zero-indexed
+    -- 0-indexed
     local line, col = cmd_preview._idx_to_text_pos(text, 7)
     assert.are_same(1, line)
     assert.are_same(1, col)
@@ -116,12 +97,23 @@ describe("Levenshtein edits to highlight positions", function()
     assert.are_same("i", vim.split(text, "\n")[line + 1]:sub(col + 1, col + 1))
   end)
 
+  it("works for multi-line insertion", function()
+    local text = "line_1\nNEW\nline_3\n"
+    -- 1-indexed
+    local edits = { { type = "insertion", start_pos = 8, end_pos = 10 } }
+    local actual = cmd_preview._get_multiline_highlights(text, edits)
+    assert.are_same({
+      -- 0-indexed; end_col is end-exclusive
+      { line = 1, start_col = 0, end_col = 3 },
+    }, actual)
+  end)
+
   it("returns positions on a single line when inserting at the end of the line", function()
     local text = "abcNEW"
     local edits = { { type = "insertion", start_pos = 4, end_pos = 6 } }
-    local actual = cmd_preview._edits_to_hl_positions(text, edits)
+    local actual = cmd_preview._get_multiline_highlights(text, edits)
     assert.are_same({
-      -- zero-indexed; end_col is end-exclusive
+      -- 0-indexed; end_col is exclusive
       { line = 0, start_col = 3, end_col = 6 },
     }, actual)
   end)
@@ -129,7 +121,7 @@ describe("Levenshtein edits to highlight positions", function()
   it("returns empty table for deletion edits", function()
     local text = "abc"
     local edits = { { type = "deletion", start_pos = 1, end_pos = 2 } }
-    local actual = cmd_preview._edits_to_hl_positions(text, edits)
+    local actual = cmd_preview._get_multiline_highlights(text, edits)
     assert.are_same({}, actual)
   end)
 end)

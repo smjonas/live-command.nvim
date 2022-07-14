@@ -11,13 +11,20 @@ local scratch_buf, cached_lines
 -- Strips the common prefix and suffix from the two strings
 -- and returns the updated strings and start position.
 local function strip_common(str_a, str_b)
-  local len_a = #str_a
-  local len_b = #str_b
+  local len_a, len_b = #str_a, #str_b
+  local skipped_lines_count = 0
+  local last_newline_pos = 0
 
-  -- Strip common prefix
   local new_start
+  -- Strip common prefix
   for i = 1, math.max(len_a, len_b) do
-    if str_a:sub(i, i) == str_b:sub(i, i) then
+    local char_a = str_a:sub(i, i)
+    if char_a == "\n" then
+      skipped_lines_count = skipped_lines_count + 1
+      -- Reset offset
+      last_newline_pos = i
+    end
+    if char_a == str_b:sub(i, i) then
       new_start = i
     else
       break
@@ -45,18 +52,15 @@ local function strip_common(str_a, str_b)
     str_a = str_a:sub(1, len_a - end_offset)
     str_b = str_b:sub(1, len_b - end_offset)
   end
-  return str_a, str_b, new_start or 0
+  return str_a, str_b, new_start and (new_start - last_newline_pos) or 0, skipped_lines_count
 end
 
 -- Returns a list of insertion and replacement operations
 -- that turn the first string into the second one.
 local function get_levenshtein_edits(str_a, str_b)
-  local len_a = #str_a
-  local len_b = #str_b
-
-  -- quick cut-offs to save time
+  local len_a, len_b = #str_a, #str_b
   if len_a == 0 then
-    return {}
+    return { { type = "insertion", start_pos = 1, end_pos = len_b } }
   elseif len_b == 0 then
     return {}
   elseif str_a == str_b then
@@ -141,12 +145,12 @@ local idx_to_text_pos = function(s, idx)
   return line - 1, idx - cur_idx
 end
 
-local edits_to_hl_positions = function(updated_lines, edits)
+local get_multiline_highlights = function(new_text, edits)
   local hl_positions = {}
   for _, edit in ipairs(edits) do
     if edit.type ~= "deletion" then
-      local start_line, start_col = idx_to_text_pos(updated_lines, edit.start_pos)
-      local end_line, end_col = idx_to_text_pos(updated_lines, edit.end_pos)
+      local start_line, start_col = idx_to_text_pos(new_text, edit.start_pos)
+      local end_line, end_col = idx_to_text_pos(new_text, edit.end_pos)
       local highlight
       if start_line == end_line then
         highlight = { line = start_line, start_col = start_col - 1, end_col = end_col }
@@ -166,11 +170,25 @@ local edits_to_hl_positions = function(updated_lines, edits)
   return hl_positions
 end
 
+local apply_highlight = function(hl, line_offset, col_offset, bufnr, preview_ns)
+  -- for _, hl in ipairs(edits_to_hl_positions(new_text, edits)) do
+  -- vim.v.errmsg = "TEST" .. new_start .. " pos " .. hl.start_col + new_start .. hl.end_col + new_start
+  vim.api.nvim_buf_add_highlight(
+    bufnr,
+    preview_ns,
+    "Substitute",
+    -- TODO: can't the line number change too?
+    hl.line + line_offset,
+    hl.start_col + col_offset,
+    hl.end_col + col_offset
+  )
+end
+
 -- Expose functions to tests
 M._strip_common = strip_common
 M._get_levenshtein_edits = get_levenshtein_edits
 M._idx_to_text_pos = idx_to_text_pos
-M._edits_to_hl_positions = edits_to_hl_positions
+M._get_multiline_highlights = get_multiline_highlights
 
 -- Called when the user is still typing the command or the command arguments
 local function command_preview(opts, preview_ns, preview_buf)
@@ -208,26 +226,74 @@ local function command_preview(opts, preview_ns, preview_buf)
   vim.api.nvim_set_current_buf(bufnr)
   vim.api.nvim_buf_set_lines(bufnr, range[1], range[2], false, updated_lines)
 
-  local a = table.concat(cached_lines, "\n")
-  local b = table.concat(updated_lines, "\n")
-  local new_start
-  a, b, new_start = strip_common(a, b)
-  local edits = get_levenshtein_edits(a, b)
-  -- new_start = 0
-
-  for _, hl in ipairs(edits_to_hl_positions(b, edits)) do
-    vim.v.errmsg = "TEST" .. new_start .. " pos " .. hl.start_col + new_start.. hl.end_col + new_start
-    vim.api.nvim_buf_add_highlight(
-      bufnr,
-      preview_ns,
-      "Substitute",
-      -- TODO: should do line-wise prefix / suffix computation
-      -- TODO: can't the line number change too?
-      hl.line + range[1],
-      hl.start_col + new_start,
-      hl.end_col + new_start
-    )
+  local function set_error(msg)
+    vim.v.errmsg = msg
   end
+
+  -- New lines were inserted or lines were deleted.
+  -- In this case, we need to compute the distance across all lines.
+  if #updated_lines ~= #cached_lines then
+    local a = table.concat(cached_lines, "\n")
+    local b = table.concat(updated_lines, "\n")
+    local new_start, skipped_lines_count
+    a, b, new_start, skipped_lines_count = strip_common(a, b)
+
+    local edits = get_levenshtein_edits(a, b)
+
+    local xs = {}
+    for _, hl in ipairs(get_multiline_highlights(b, edits)) do
+      -- set_error(
+      --   vim.v.errmsg
+      --     .. "\n\n"
+      --     .. hl.line
+      --     .. ", r="
+      --     .. range[1]
+      --     .. ", lines="
+      --     .. skipped_lines_count
+      --     .. hl.start_col
+      --     .. ", "
+      --     .. hl.end_col
+      -- )
+      local x =
+        { line = hl.line, range = range[1], skipped_lines_count = skipped_lines_count, col = hl.start_col + new_start }
+      table.insert(xs, x)
+      apply_highlight(hl, range[1] + skipped_lines_count, new_start, bufnr, preview_ns)
+    end
+    set_error(vim.inspect(xs))
+  else
+    -- In the other case, it is more efficient to compute the distance per line
+    for i = 1, #updated_lines do
+      local a, b, new_start, _ = strip_common(cached_lines[i], updated_lines[i])
+      -- set_error(a .. "|" .. b)
+      local edits = get_levenshtein_edits(a, b)
+      for _, edit in ipairs(edits) do
+        local hl = { line = i - 1, start_col = edit.start_pos - 1, end_col = edit.end_pos }
+        -- set_error(hl.line .. ", " .. hl.start_col .. ", " .. hl.end_col)
+        apply_highlight(hl, range[1], new_start, bufnr, preview_ns)
+      end
+    end
+  end
+
+  -- local a = table.concat(cached_lines, "\n")
+  -- local b = table.concat(updated_lines, "\n")
+  -- local new_start
+  -- a, b, new_start = strip_common(a, b)
+  -- local edits = get_levenshtein_edits(a, b)
+  -- -- new_start = 0
+
+  -- for _, hl in ipairs(get_multiline_highlights(b, edits)) do
+  --   vim.v.errmsg = "TEST" .. new_start .. " pos " .. hl.start_col + new_start .. hl.end_col + new_start
+  --   vim.api.nvim_buf_add_highlight(
+  --     bufnr,
+  --     preview_ns,
+  --     "Substitute",
+  --     -- TODO: should do line-wise prefix / suffix computation
+  --     -- TODO: can't the line number change too?
+  --     hl.line + range[1],
+  --     hl.start_col + new_start,
+  --     hl.end_col + new_start
+  --   )
+  -- end
   return 2
 end
 
