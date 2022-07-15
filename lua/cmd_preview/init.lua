@@ -1,9 +1,8 @@
 local M = {}
 
-local config
-M.default_config = {
-  cmd_name = "Norm",
+M.defaults = {
   hl_group = "Substitute",
+  max_line_highlights = -1,
 }
 
 local scratch_buf, cached_lines
@@ -17,6 +16,7 @@ local function strip_common(str_a, str_b)
 
   local new_start
   -- Strip common prefix
+  -- TODO: change to MIN
   for i = 1, math.max(len_a, len_b) do
     local char_a = str_a:sub(i, i)
     if char_a == "\n" then
@@ -55,9 +55,40 @@ local function strip_common(str_a, str_b)
   return str_a, str_b, new_start and (new_start - last_newline_pos) or 0, skipped_lines_count
 end
 
+local function strip_common_linewise(lines_a, lines_b)
+  local len_a, len_b = #lines_a, #lines_b
+  -- Remove common lines at beginning / end
+  local start_lines_count = 0
+  for i = 1, math.min(len_a, len_b) do
+    if lines_a[i] == lines_b[i] then
+      start_lines_count = i
+    else
+      break
+    end
+  end
+
+  local end_lines_count = 0
+  for i = 0, math.min(len_a - start_lines_count, len_b - start_lines_count) - 1 do
+    if lines_a[len_a - i] == lines_b[len_b - i] then
+      end_lines_count = i + 1
+    else
+      break
+    end
+  end
+
+  local new_a, new_b = {}, {}
+  for i = start_lines_count + 1, len_a - end_lines_count do
+    table.insert(new_a, lines_a[i])
+  end
+  for i = start_lines_count + 1, len_b - end_lines_count do
+    table.insert(new_b, lines_b[i])
+  end
+  return new_a, new_b, start_lines_count
+end
+
 -- Returns a list of insertion and replacement operations
 -- that turn the first string into the second one.
-local function get_levenshtein_edits(str_a, str_b)
+local function get_levenshtein_edits(str_a, str_b, max_edits_count)
   local len_a, len_b = #str_a, #str_b
   if len_a == 0 then
     return { { type = "insertion", start_pos = 1, end_pos = len_b } }
@@ -96,16 +127,8 @@ local function get_levenshtein_edits(str_a, str_b)
     local edit_type
     if str_a:sub(row, row) ~= str_b:sub(col, col) then
       if matrix[row - 1][col] <= matrix[row][col - 1] and matrix[row - 1][col] <= matrix[row - 1][col - 1] then
-        edit_type = "deletion"
-        if cur_edit.type == edit_type and cur_edit.start_pos == row + 1 then
-          -- Extend the edit
-          cur_edit.start_pos = row
-        else
-          cur_edit = { type = edit_type, start_pos = row, end_pos = row }
-          table.insert(edits, 1, cur_edit)
-        end
+        -- Deletion, don't need to store this edit
         row = row - 1
-        -- TODO: refactor
         col = col + 1
       else
         if matrix[row][col - 1] <= matrix[row - 1][col] and matrix[row][col - 1] <= matrix[row - 1][col - 1] then
@@ -118,6 +141,10 @@ local function get_levenshtein_edits(str_a, str_b)
           -- Extend the edit
           cur_edit.start_pos = col
         else
+          if max_edits_count > 0 and #edits == max_edits_count - 1 then
+            -- Return a single insertion edit when a maximum number of edits is reached
+            return { { type = "insertion", start_pos = 1, end_pos = len_b } }, matrix
+          end
           cur_edit = { type = edit_type, start_pos = col, end_pos = col }
           table.insert(edits, 1, cur_edit)
         end
@@ -127,52 +154,46 @@ local function get_levenshtein_edits(str_a, str_b)
     end
     col = col - 1
   end
-
   return edits, matrix
 end
 
 -- Returns the 0-indexed line and column numbers of the idx-th character of s in s.
 -- A new line begins when a newline character is encountered.
 local idx_to_text_pos = function(s, idx)
-  local line = 1
-  local cur_idx = 0
+  local line = 0
+  local cur_idx = 1
   for i = 1, idx do
     if s:sub(i, i) == "\n" then
       line = line + 1
-      cur_idx = i
+      -- Line begins at the next character
+      cur_idx = i + 1
     end
   end
-  return line - 1, idx - cur_idx
+  return line, idx - cur_idx
 end
 
 local get_multiline_highlights = function(new_text, edits)
   local hl_positions = {}
   for _, edit in ipairs(edits) do
-    if edit.type ~= "deletion" then
-      local start_line, start_col = idx_to_text_pos(new_text, edit.start_pos)
-      local end_line, end_col = idx_to_text_pos(new_text, edit.end_pos)
-      local highlight
-      if start_line == end_line then
-        highlight = { line = start_line, start_col = start_col - 1, end_col = end_col }
-      else
-        -- Highlight to the end of the first line
-        highlight = { line = start_line, start_col = start_col, end_col = -1 }
-        -- Highlight all lines inbetween
-        for line = start_line + 1, end_line - 1 do
-          highlight = { line = line, start_col = 0, end_col = -1 }
-        end
-        -- Highlight from the start of the last line
-        highlight = { line = end_line, start_col = 0, end_col = start_col }
+    local start_line, start_col = idx_to_text_pos(new_text, edit.start_pos)
+    local end_line, end_col = idx_to_text_pos(new_text, edit.end_pos)
+    if start_line == end_line then
+      table.insert(hl_positions, { line = start_line, start_col = start_col, end_col = end_col + 1 })
+    else
+      -- Highlight to the end of the first line
+      table.insert(hl_positions, { line = start_line, start_col = start_col, end_col = -1 })
+      -- Highlight all lines inbetween
+      for line = start_line + 1, end_line - 1 do
+        table.insert(hl_positions, { line = line, start_col = 0, end_col = -1 })
       end
-      hl_positions[#hl_positions + 1] = highlight
+      -- Highlight from the start of the last line
+      table.insert(hl_positions, { line = end_line, start_col = 0, end_col = end_col + 1 })
     end
   end
   return hl_positions
 end
 
 local apply_highlight = function(hl, line_offset, col_offset, bufnr, preview_ns)
-  -- for _, hl in ipairs(edits_to_hl_positions(new_text, edits)) do
-  -- vim.v.errmsg = "TEST" .. new_start .. " pos " .. hl.start_col + new_start .. hl.end_col + new_start
   vim.api.nvim_buf_add_highlight(
     bufnr,
     preview_ns,
@@ -186,13 +207,14 @@ end
 
 -- Expose functions to tests
 M._strip_common = strip_common
+M._strip_common_linewise = strip_common_linewise
 M._get_levenshtein_edits = get_levenshtein_edits
 M._idx_to_text_pos = idx_to_text_pos
 M._get_multiline_highlights = get_multiline_highlights
 
 -- Called when the user is still typing the command or the command arguments
 local function command_preview(opts, preview_ns, preview_buf)
-  -- TODO: don't ignore preview_buf
+  -- TODO: handle preview_buf
   vim.v.errmsg = ""
   if opts.args:find("^%s*$") then
     return
@@ -215,7 +237,7 @@ local function command_preview(opts, preview_ns, preview_buf)
   local cmd = {
     cmd = "bufdo",
     -- Use 1,$ as a range to apply the command to the entire scratch buffer
-    args = { ("1,$%s %s"):format(opts.cmd, opts.args) },
+    args = { ("1,$%s %s"):format(opts.command.cmd, opts.args) },
     range = { scratch_buf },
   }
   -- Run the normal mode command and get the updated buffer contents
@@ -226,74 +248,27 @@ local function command_preview(opts, preview_ns, preview_buf)
   vim.api.nvim_set_current_buf(bufnr)
   vim.api.nvim_buf_set_lines(bufnr, range[1], range[2], false, updated_lines)
 
-  local function set_error(msg)
-    vim.v.errmsg = msg
-  end
-
   -- New lines were inserted or lines were deleted.
   -- In this case, we need to compute the distance across all lines.
   if #updated_lines ~= #cached_lines then
-    local a = table.concat(cached_lines, "\n")
-    local b = table.concat(updated_lines, "\n")
-    local new_start, skipped_lines_count
-    a, b, new_start, skipped_lines_count = strip_common(a, b)
-
+    local a, b, skipped_lines_count = strip_common_linewise(cached_lines, updated_lines)
+    a = table.concat(cached_lines, "\n")
+    b = table.concat(updated_lines, "\n")
     local edits = get_levenshtein_edits(a, b)
-
-    local xs = {}
     for _, hl in ipairs(get_multiline_highlights(b, edits)) do
-      -- set_error(
-      --   vim.v.errmsg
-      --     .. "\n\n"
-      --     .. hl.line
-      --     .. ", r="
-      --     .. range[1]
-      --     .. ", lines="
-      --     .. skipped_lines_count
-      --     .. hl.start_col
-      --     .. ", "
-      --     .. hl.end_col
-      -- )
-      local x =
-        { line = hl.line, range = range[1], skipped_lines_count = skipped_lines_count, col = hl.start_col + new_start }
-      table.insert(xs, x)
-      apply_highlight(hl, range[1] + skipped_lines_count, new_start, bufnr, preview_ns)
+      apply_highlight(hl, range[1] + skipped_lines_count, 0, bufnr, preview_ns)
     end
-    set_error(vim.inspect(xs))
   else
     -- In the other case, it is more efficient to compute the distance per line
     for i = 1, #updated_lines do
       local a, b, new_start, _ = strip_common(cached_lines[i], updated_lines[i])
-      -- set_error(a .. "|" .. b)
-      local edits = get_levenshtein_edits(a, b)
+      local edits = get_levenshtein_edits(a, b, opts.command.max_line_highlights)
       for _, edit in ipairs(edits) do
         local hl = { line = i - 1, start_col = edit.start_pos - 1, end_col = edit.end_pos }
-        -- set_error(hl.line .. ", " .. hl.start_col .. ", " .. hl.end_col)
         apply_highlight(hl, range[1], new_start, bufnr, preview_ns)
       end
     end
   end
-
-  -- local a = table.concat(cached_lines, "\n")
-  -- local b = table.concat(updated_lines, "\n")
-  -- local new_start
-  -- a, b, new_start = strip_common(a, b)
-  -- local edits = get_levenshtein_edits(a, b)
-  -- -- new_start = 0
-
-  -- for _, hl in ipairs(get_multiline_highlights(b, edits)) do
-  --   vim.v.errmsg = "TEST" .. new_start .. " pos " .. hl.start_col + new_start .. hl.end_col + new_start
-  --   vim.api.nvim_buf_add_highlight(
-  --     bufnr,
-  --     preview_ns,
-  --     "Substitute",
-  --     -- TODO: should do line-wise prefix / suffix computation
-  --     -- TODO: can't the line number change too?
-  --     hl.line + range[1],
-  --     hl.start_col + new_start,
-  --     hl.end_col + new_start
-  --   )
-  -- end
   return 2
 end
 
@@ -325,10 +300,34 @@ local create_user_commands = function(commands)
       nargs = "*",
       range = true,
       preview = function(opts, preview_ns, preview_buf)
-        opts.cmd = command.cmd
+        opts.command = command
         return command_preview(opts, preview_ns, preview_buf)
       end,
     })
+  end
+end
+
+local validate_config = function(config)
+  local defaults = config.defaults
+  vim.validate {
+    defaults = { defaults, "table", true },
+    commands = { config.commands, "table" },
+  }
+  if defaults then
+    for opt, _ in ipairs(defaults) do
+      vim.validate {
+        ["defaults.max_line_highlights"] = { opt, "number" },
+      }
+    end
+  end
+  local possible_opts = { "max_line_highlights" }
+  for _, command in pairs(config.commands) do
+    vim.validate {
+      cmd = { command.cmd, "string" },
+    }
+    for _, opt in ipairs(possible_opts) do
+      command[opt] = command[opt] or (defaults and defaults[opt]) or M.defaults[opt]
+    end
   end
 end
 
@@ -341,7 +340,8 @@ M.setup = function(user_config)
     return
   end
 
-  config = vim.tbl_deep_extend("force", M.default_config, user_config or {})
+  local config = vim.tbl_deep_extend("force", M.defaults, user_config or {})
+  validate_config(config)
   create_user_commands(config.commands)
 
   local id = vim.api.nvim_create_augroup("command_preview.nvim", { clear = true })

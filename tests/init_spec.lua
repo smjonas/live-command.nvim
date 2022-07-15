@@ -26,11 +26,23 @@ describe("Stripping common prefix and suffix", function()
     assert.are_same("ABC", new_b)
     assert.are_same(0, new_start)
   end)
+
+  it("linewise", function()
+    local a = { "Line 1", "X", "Line 2" }
+    local b = { "Line 1", "Line", "Line", "Line 2" }
+    local new_a, new_b, start_lines_count = cmd_preview._strip_common_linewise(a, b)
+    assert.are_same({ "X" }, new_a)
+    assert.are_same({ "Line", "Line" }, new_b)
+    -- Original tables should not change
+    assert.are_same({ "Line 1", "X", "Line 2" }, a)
+    assert.are_same({ "Line 1", "Line", "Line", "Line 2" }, b)
+    assert.are_same(1, start_lines_count)
+  end)
 end)
 
 describe("Levenshtein distance algorithm", function()
   it("computes correct matrix", function()
-    local _, actual = cmd_preview._get_levenshtein_edits("abc", "ab")
+    local _, actual = cmd_preview._get_levenshtein_edits("abc", "ab", -1)
     assert.are_same({
       [0] = { [0] = 0, 1, 2 },
       [1] = { [0] = 1, 0, 1 },
@@ -42,28 +54,28 @@ end)
 
 describe("Levenshtein edits", function()
   it("works for insertion", function()
-    local actual = cmd_preview._get_levenshtein_edits("ad", "abcd")
+    local actual = cmd_preview._get_levenshtein_edits("ad", "abcd", -1)
     assert.are_same({
       { type = "insertion", start_pos = 2, end_pos = 3 },
     }, actual)
   end)
 
   it("works when first string is empty", function()
-    local actual = cmd_preview._get_levenshtein_edits("", "ab")
+    local actual = cmd_preview._get_levenshtein_edits("", "ab", -1)
     assert.are_same({
       { type = "insertion", start_pos = 1, end_pos = 2 },
     }, actual)
   end)
 
   it("works for replacement", function()
-    local actual = cmd_preview._get_levenshtein_edits("abcd", "aBCd")
+    local actual = cmd_preview._get_levenshtein_edits("abcd", "aBCd", -1)
     assert.are_same({
       { type = "replacement", start_pos = 2, end_pos = 3 },
     }, actual)
   end)
 
   it("works for mixed insertion and replacement", function()
-    local actual = cmd_preview._get_levenshtein_edits("abcd", "AbecD")
+    local actual = cmd_preview._get_levenshtein_edits("abcd", "AbecD", -1)
     assert.are_same({
       { type = "replacement", start_pos = 1, end_pos = 1 },
       { type = "insertion", start_pos = 3, end_pos = 3 },
@@ -72,16 +84,21 @@ describe("Levenshtein edits", function()
   end)
 
   it("works for deletion at end of word", function()
-    local actual = cmd_preview._get_levenshtein_edits("abcd", "ab")
-    assert.are_same({
-      { type = "deletion", start_pos = 3, end_pos = 4 },
-    }, actual)
+    local actual = cmd_preview._get_levenshtein_edits("abcd", "ab", -1)
+    -- Deletion edits are not stored
+    assert.are_same({}, actual)
   end)
 
   it("works for deletion within word", function()
-    local actual = cmd_preview._get_levenshtein_edits("abcd", "ad")
+    local actual = cmd_preview._get_levenshtein_edits("abcd", "ad", -1)
+    -- Deletion edits are not stored
+    assert.are_same({}, actual)
+  end)
+
+  it("returns early when max_edits_count is reached", function()
+    local actual = cmd_preview._get_levenshtein_edits("abcd", "aXbXcXd", 3)
     assert.are_same({
-      { type = "deletion", start_pos = 2, end_pos = 3 },
+      { type = "insertion", start_pos = 1, end_pos = 7 },
     }, actual)
   end)
 end)
@@ -89,22 +106,33 @@ end)
 describe("Get multiline highlights from Levenshtein edits", function()
   it("(index to text position)", function()
     local text = "line1\nline2"
-    -- 0-indexed
+    -- Input index is 1-based, output line and column are 0-indexed
     local line, col = cmd_preview._idx_to_text_pos(text, 7)
     assert.are_same(1, line)
-    assert.are_same(1, col)
+    -- Inclusive
+    assert.are_same(0, col)
     -- Sanity check
-    assert.are_same("i", vim.split(text, "\n")[line + 1]:sub(col + 1, col + 1))
+    assert.are_same("l", vim.split(text, "\n")[line + 1]:sub(col + 1, col + 1))
+  end)
+
+  it("(index to text position for single line)", function()
+    local text = "line1"
+    -- Input index is 1-based, output line and column are 0-indexed
+    local line, col = cmd_preview._idx_to_text_pos(text, 1)
+    assert.are_same(0, line)
+    assert.are_same(0, col)
   end)
 
   it("works for multi-line insertion", function()
-    local text = "line_1\nNEW\nline_3\n"
-    -- 1-indexed
-    local edits = { { type = "insertion", start_pos = 8, end_pos = 10 } }
+    local text = "line_1\nXXNEW\nNEW\nXXline_4\n"
+    -- 1-indexed, inclusive; inserted "XXNEW\nNEW\nXX"
+    local edits = { { type = "insertion", start_pos = 10, end_pos = 19 } }
     local actual = cmd_preview._get_multiline_highlights(text, edits)
     assert.are_same({
-      -- 0-indexed; end_col is end-exclusive
-      { line = 1, start_col = 0, end_col = 3 },
+      -- 0-indexed; end_col is exclusive
+      { line = 1, start_col = 2, end_col = -1 },
+      { line = 2, start_col = 0, end_col = -1 },
+      { line = 3, start_col = 0, end_col = 2 },
     }, actual)
   end)
 
@@ -116,12 +144,5 @@ describe("Get multiline highlights from Levenshtein edits", function()
       -- 0-indexed; end_col is exclusive
       { line = 0, start_col = 3, end_col = 6 },
     }, actual)
-  end)
-
-  it("returns empty table for deletion edits", function()
-    local text = "abc"
-    local edits = { { type = "deletion", start_pos = 1, end_pos = 2 } }
-    local actual = cmd_preview._get_multiline_highlights(text, edits)
-    assert.are_same({}, actual)
   end)
 end)
