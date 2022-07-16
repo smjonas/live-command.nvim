@@ -96,15 +96,15 @@ describe("Levenshtein edits", function()
     assert.are_same({}, actual)
   end)
 
-  it("returns early when max_edits_count is reached and highlight_all=true", function()
-    local actual = cmd_preview._get_levenshtein_edits("abcd", "aXbXcXd", { count = 3, highlight_all = true })
+  it("returns early when max_edits_count is reached and disable_highlighting=false", function()
+    local actual = cmd_preview._get_levenshtein_edits("abcd", "aXbXcXd", { count = 3, disable_highlighting = false })
     assert.are_same({
       { type = "insertion", start_pos = 1, end_pos = 7 },
     }, actual)
   end)
 
-  it("returns early when max_edits_count is reached and highlight_all=false", function()
-    local actual = cmd_preview._get_levenshtein_edits("abcd", "aXbXcXd", { count = 3, highlight_all = false })
+  it("returns early when max_edits_count is reached and disable_highlighting=true", function()
+    local actual = cmd_preview._get_levenshtein_edits("abcd", "aXbXcXd", { count = 3, disable_highlighting = true })
     assert.are_same({}, actual)
   end)
 end)
@@ -159,7 +159,7 @@ describe("Get multiline highlights from Levenshtein edits", function()
       { type = "insertion", start_pos = 4, end_pos = 4 },
       { type = "insertion", start_pos = 6, end_pos = 6 },
     }
-    local actual = cmd_preview._get_multiline_highlights(text, edits, { count = 2, highlight_all = true })
+    local actual = cmd_preview._get_multiline_highlights(text, edits, { count = 2, disable_highlighting = false })
     assert.are_same({
       -- 0-indexed; end_col is exclusive.
       -- The first line should be fully highlighted.

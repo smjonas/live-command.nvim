@@ -1,7 +1,7 @@
 # command-preview.nvim
 
 The easiest way to create previewable commands in Neovim.
-Preview autocommands, the `:norm` command & more!
+Preview macros, the `:norm` command & more!
 
 > :warning: This plugin is still in development. Make sure to watch this project on GitHub to
 > be notified when it's released!

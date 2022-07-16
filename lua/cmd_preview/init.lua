@@ -1,8 +1,8 @@
 local M = {}
 
 M.defaults = {
-  hl_group = "Substitute",
-  max_line_highlights = -1,
+  hl_group = "IncSearch",
+  max_line_highlights = { count = 20, disable_highlighting = true },
 }
 
 local scratch_buf, cached_lines, exit_early
@@ -142,11 +142,11 @@ local function get_levenshtein_edits(str_a, str_b, max_edits)
           cur_edit.start_pos = col
         else
           if #edits == max_edits.count - 1 then
-            -- Return a single insertion edit when a maximum number of edits is reached
-            if max_edits.highlight_all then
-              return { { type = "insertion", start_pos = 1, end_pos = len_b } }
-            else
+            if max_edits.disable_highlighting then
               return {}
+            else
+              -- Return a single insertion edit when a maximum number of edits is reached
+              return { { type = "insertion", start_pos = 1, end_pos = len_b } }
             end
           end
           cur_edit = { type = edit_type, start_pos = col, end_pos = col }
@@ -190,12 +190,11 @@ local get_multiline_highlights = function(new_text, edits, max_line_highlights)
       if not hl_positions[start_line] then
         hl_positions[start_line] = {}
       end
-      vim.v.errmsg = "checking" .. max_line_highlights.count
       if #hl_positions[start_line] >= max_line_highlights.count - 1 then
-        if max_line_highlights.highlight_all then
-          hl_positions[start_line] = { { start_col = 0, end_col = -1 } }
-        else
+        if max_line_highlights.disable_highlighting then
           hl_positions[start_line] = {}
+        else
+          hl_positions[start_line] = { { start_col = 0, end_col = -1 } }
         end
         skip_line[start_line] = true
       else
@@ -228,7 +227,7 @@ local apply_highlight = function(hl, line, line_offset, col_offset, bufnr, previ
   vim.api.nvim_buf_add_highlight(
     bufnr,
     preview_ns,
-    "Substitute",
+    hl.hl_group,
     -- TODO: can't the line number change too?
     line + line_offset,
     hl.start_col + col_offset,
@@ -245,14 +244,14 @@ M._get_multiline_highlights = get_multiline_highlights
 
 local function get_max_line_highlights(max_line_highlights, b)
   if type(max_line_highlights) == "number" then
-    return { count = max_line_highlights, highlight_all = false }
+    return { count = max_line_highlights, disable_highlighting = true }
   else
     local result = type(max_line_highlights) == "table" and max_line_highlights or max_line_highlights(b)
     -- Do not run the command when vim.validate fails
     exit_early = true
     vim.validate {
       ["max_line_highlights.count"] = { result.count, "number" },
-      ["max_line_highlights.highlight_all"] = { result.highlight_all, "boolean", true },
+      ["max_line_highlights.disable_highlighting"] = { result.disable_highlighting, "boolean" },
     }
     exit_early = false
     return result
@@ -263,7 +262,8 @@ end
 local function command_preview(opts, preview_ns, preview_buf)
   -- TODO: handle preview_buf
   vim.v.errmsg = ""
-  if opts.args:find("^%s*$") then
+  local args = opts.command.args or opts.args
+  if args:find("^%s*$") then
     return
   end
 
@@ -281,14 +281,15 @@ local function command_preview(opts, preview_ns, preview_buf)
   -- Clear the scratch buffer
   vim.api.nvim_buf_set_lines(scratch_buf, 0, -1, false, cached_lines)
 
-  local cmd = {
+  local command = opts.command
+  -- Run the normal mode command and get the updated buffer contents
+  vim.api.nvim_cmd({
     cmd = "bufdo",
     -- Use 1,$ as a range to apply the command to the entire scratch buffer
-    args = { ("1,$%s %s"):format(opts.command.cmd, opts.args) },
+    args = { ("1,$%s %s"):format(command.cmd, args) },
     range = { scratch_buf },
-  }
-  -- Run the normal mode command and get the updated buffer contents
-  vim.api.nvim_cmd(cmd, {})
+  }, {})
+
   local updated_lines = vim.api.nvim_buf_get_lines(scratch_buf, 0, -1, false) or {}
 
   -- Update the original buffer
@@ -302,9 +303,10 @@ local function command_preview(opts, preview_ns, preview_buf)
     a = table.concat(cached_lines, "\n")
     b = table.concat(updated_lines, "\n")
     local edits = get_levenshtein_edits(a, b, { count = -1 })
-    local max_line_highlights = get_max_line_highlights(opts.command.max_line_highlights, b)
+    local max_line_highlights = get_max_line_highlights(command.max_line_highlights, b)
     for line_nr, hls_per_line in pairs(get_multiline_highlights(b, edits, max_line_highlights)) do
       for _, hl in ipairs(hls_per_line) do
+        hl.hl_group = command.hl_group
         apply_highlight(hl, line_nr, range[1] + skipped_lines_count, 0, bufnr, preview_ns)
       end
     end
@@ -312,10 +314,10 @@ local function command_preview(opts, preview_ns, preview_buf)
     -- In the other case, it is more efficient to compute the distance per line
     for i = 1, #updated_lines do
       local a, b, new_start, _ = strip_common(cached_lines[i], updated_lines[i])
-      local max_line_highlights = get_max_line_highlights(opts.command.max_line_highlights, b)
+      local max_line_highlights = get_max_line_highlights(command.max_line_highlights, b)
       local edits = get_levenshtein_edits(a, b, max_line_highlights)
       for _, edit in ipairs(edits) do
-        local hl = { line = i - 1, start_col = edit.start_pos - 1, end_col = edit.end_pos }
+        local hl = { line = i - 1, start_col = edit.start_pos - 1, end_col = edit.end_pos, hl_group = command.hl_group }
         apply_highlight(hl, i - 1, range[1], new_start, bufnr, preview_ns)
       end
     end
@@ -349,7 +351,7 @@ local create_user_commands = function(commands)
       local range = opts.range == 2 and ("%s,%s"):format(opts.line1, opts.line2)
         or opts.range == 1 and string(opts.line1)
         or ""
-      execute_command(("%s%s %s"):format(range, command.cmd, opts.args))
+      execute_command(("%s%s %s"):format(range, command.cmd, command.args or opts.args))
     end, {
       nargs = "*",
       range = true,
@@ -370,14 +372,17 @@ local validate_config = function(config)
   if defaults then
     for opt, _ in ipairs(defaults) do
       vim.validate {
+        ["defaults.hl_group"] = { opt, "string", true },
         ["defaults.max_line_highlights"] = { opt, { "number", "table", "function" }, true },
       }
     end
   end
-  local possible_opts = { "max_line_highlights" }
+  local possible_opts = { "hl_group", "max_line_highlights" }
   for _, command in pairs(config.commands) do
     vim.validate {
       cmd = { command.cmd, "string" },
+      args = { command.args, "string", true },
+      ["command.hl_group"] = { command.hl_group, "string", true },
       ["command.max_line_highlights"] = { command.max_line_highlights, { "number", "table", "function" }, true },
     }
     for _, opt in ipairs(possible_opts) do
