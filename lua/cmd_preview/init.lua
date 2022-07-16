@@ -6,7 +6,8 @@ M.defaults = {
   max_line_highlights = { count = 20, disable_highlighting = true },
 }
 
-local scratch_buf, cached_lines, exit_early
+local scratch_buf, cached_lines,  exit_early
+local prev_cursorline, prev_lazyredraw
 
 -- Strips the common prefix and suffix from the two strings
 -- and returns the updated strings and start position.
@@ -272,6 +273,10 @@ local function command_preview(opts, preview_ns, preview_buf)
   end
 
   if not scratch_buf then
+    prev_lazyredraw = vim.o.lazyredraw
+    prev_cursorline = vim.wo.cursorline
+    vim.o.lazyredraw = true
+    vim.wo.cursorline = false
     scratch_buf = vim.api.nvim_create_buf(true, true)
     cached_lines = vim.api.nvim_buf_get_lines(bufnr, range[1], range[2], false)
   end
@@ -329,6 +334,15 @@ local function command_preview(opts, preview_ns, preview_buf)
   return 2
 end
 
+local function restore_buffer_state()
+  if scratch_buf then
+    vim.api.nvim_buf_delete(scratch_buf, {})
+    vim.wo.cursorline = prev_cursorline
+    vim.o.lazyredraw = prev_lazyredraw
+    scratch_buf = nil
+  end
+end
+
 local function execute_command(command)
   -- Any errors that occur in the preview function are not directly shown to the user but stored in vim.v.errmsg.
   -- Related: https://github.com/neovim/neovim/issues/18910.
@@ -339,21 +353,19 @@ local function execute_command(command)
       vim.lsp.log_levels.ERROR
     )
   end
-  if scratch_buf then
-    if not exit_early then
-      vim.cmd(command)
-      exit_early = false
-    end
-    vim.api.nvim_buf_delete(scratch_buf, {})
-    scratch_buf = nil
+  if not exit_early then
+    vim.cmd(command)
+    exit_early = false
   end
+  restore_buffer_state()
 end
 
 local create_user_commands = function(commands)
   for name, command in pairs(commands) do
     vim.api.nvim_create_user_command(name, function(opts)
+      -- TODO: correctly handle command
       local range = opts.range == 2 and ("%s,%s"):format(opts.line1, opts.line2)
-        or opts.range == 1 and string(opts.line1)
+        or opts.range == 1 and tostring(opts.line1)
         or ""
       execute_command(("%s%s %s"):format(range, command.cmd, command.args or opts.args))
     end, {
@@ -416,10 +428,7 @@ M.setup = function(user_config)
     group = id,
     -- Schedule wrap to run after a potential command execution
     callback = vim.schedule_wrap(function()
-      if scratch_buf then
-        vim.api.nvim_buf_delete(scratch_buf, {})
-        scratch_buf = nil
-      end
+      restore_buffer_state()
     end),
   })
 end
