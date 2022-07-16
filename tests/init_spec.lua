@@ -42,7 +42,7 @@ end)
 
 describe("Levenshtein distance algorithm", function()
   it("computes correct matrix", function()
-    local _, actual = cmd_preview._get_levenshtein_edits("abc", "ab", -1)
+    local _, actual = cmd_preview._get_levenshtein_edits("abc", "ab", { count = -1 })
     assert.are_same({
       [0] = { [0] = 0, 1, 2 },
       [1] = { [0] = 1, 0, 1 },
@@ -54,28 +54,29 @@ end)
 
 describe("Levenshtein edits", function()
   it("works for insertion", function()
-    local actual = cmd_preview._get_levenshtein_edits("ad", "abcd", -1)
+    local actual, _ = cmd_preview._get_levenshtein_edits("b", "abc", { count = 99 })
     assert.are_same({
-      { type = "insertion", start_pos = 2, end_pos = 3 },
+      { type = "insertion", start_pos = 1, end_pos = 1 },
+      { type = "insertion", start_pos = 3, end_pos = 3 },
     }, actual)
   end)
 
   it("works when first string is empty", function()
-    local actual = cmd_preview._get_levenshtein_edits("", "ab", -1)
+    local actual = cmd_preview._get_levenshtein_edits("", "ab", { count = 99 })
     assert.are_same({
       { type = "insertion", start_pos = 1, end_pos = 2 },
     }, actual)
   end)
 
   it("works for replacement", function()
-    local actual = cmd_preview._get_levenshtein_edits("abcd", "aBCd", -1)
+    local actual = cmd_preview._get_levenshtein_edits("abcd", "aBCd", { count = 99 })
     assert.are_same({
       { type = "replacement", start_pos = 2, end_pos = 3 },
     }, actual)
   end)
 
   it("works for mixed insertion and replacement", function()
-    local actual = cmd_preview._get_levenshtein_edits("abcd", "AbecD", -1)
+    local actual = cmd_preview._get_levenshtein_edits("abcd", "AbecD", { count = 99 })
     assert.are_same({
       { type = "replacement", start_pos = 1, end_pos = 1 },
       { type = "insertion", start_pos = 3, end_pos = 3 },
@@ -84,22 +85,27 @@ describe("Levenshtein edits", function()
   end)
 
   it("works for deletion at end of word", function()
-    local actual = cmd_preview._get_levenshtein_edits("abcd", "ab", -1)
+    local actual = cmd_preview._get_levenshtein_edits("abcd", "ab", { count = 99 })
     -- Deletion edits are not stored
     assert.are_same({}, actual)
   end)
 
   it("works for deletion within word", function()
-    local actual = cmd_preview._get_levenshtein_edits("abcd", "ad", -1)
+    local actual = cmd_preview._get_levenshtein_edits("abcd", "ad", { count = 99 })
     -- Deletion edits are not stored
     assert.are_same({}, actual)
   end)
 
-  it("returns early when max_edits_count is reached", function()
-    local actual = cmd_preview._get_levenshtein_edits("abcd", "aXbXcXd", 3)
+  it("returns early when max_edits_count is reached and highlight_all=true", function()
+    local actual = cmd_preview._get_levenshtein_edits("abcd", "aXbXcXd", { count = 3, highlight_all = true })
     assert.are_same({
       { type = "insertion", start_pos = 1, end_pos = 7 },
     }, actual)
+  end)
+
+  it("returns early when max_edits_count is reached and highlight_all=false", function()
+    local actual = cmd_preview._get_levenshtein_edits("abcd", "aXbXcXd", { count = 3, highlight_all = false })
+    assert.are_same({}, actual)
   end)
 end)
 
@@ -124,25 +130,41 @@ describe("Get multiline highlights from Levenshtein edits", function()
   end)
 
   it("works for multi-line insertion", function()
-    local text = "line_1\nXXNEW\nNEW\nXXline_4\n"
-    -- 1-indexed, inclusive; inserted "XXNEW\nNEW\nXX"
+    local text = "line_1\naaNEW\nNEW\nXXline_4\n"
+    -- 1-indexed, inclusive; inserted "NEW\nNEW\nXX"
     local edits = { { type = "insertion", start_pos = 10, end_pos = 19 } }
-    local actual = cmd_preview._get_multiline_highlights(text, edits)
+    local actual = cmd_preview._get_multiline_highlights(text, edits, { count = 99 })
     assert.are_same({
       -- 0-indexed; end_col is exclusive
-      { line = 1, start_col = 2, end_col = -1 },
-      { line = 2, start_col = 0, end_col = -1 },
-      { line = 3, start_col = 0, end_col = 2 },
+      [1] = { { start_col = 2, end_col = -1 } },
+      [2] = { { start_col = 0, end_col = -1 } },
+      [3] = { { start_col = 0, end_col = 2 } },
     }, actual)
   end)
 
   it("returns positions on a single line when inserting at the end of the line", function()
     local text = "abcNEW"
     local edits = { { type = "insertion", start_pos = 4, end_pos = 6 } }
-    local actual = cmd_preview._get_multiline_highlights(text, edits)
+    local actual = cmd_preview._get_multiline_highlights(text, edits, { count = 99 })
     assert.are_same({
       -- 0-indexed; end_col is exclusive
-      { line = 0, start_col = 3, end_col = 6 },
+      [0] = { { start_col = 3, end_col = 6 } },
+    }, actual)
+  end)
+
+  it("returns early when max_edits_count is reached per line", function()
+    local text = "XabX\nXab"
+    local edits = {
+      { type = "insertion", start_pos = 1, end_pos = 1 },
+      { type = "insertion", start_pos = 4, end_pos = 4 },
+      { type = "insertion", start_pos = 6, end_pos = 6 },
+    }
+    local actual = cmd_preview._get_multiline_highlights(text, edits, { count = 2, highlight_all = true })
+    assert.are_same({
+      -- 0-indexed; end_col is exclusive.
+      -- The first line should be fully highlighted.
+      [0] = { { start_col = 0, end_col = -1 } },
+      [1] = { { start_col = 0, end_col = 1 } },
     }, actual)
   end)
 end)

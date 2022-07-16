@@ -5,7 +5,7 @@ M.defaults = {
   max_line_highlights = -1,
 }
 
-local scratch_buf, cached_lines
+local scratch_buf, cached_lines, exit_early
 
 -- Strips the common prefix and suffix from the two strings
 -- and returns the updated strings and start position.
@@ -88,7 +88,7 @@ end
 
 -- Returns a list of insertion and replacement operations
 -- that turn the first string into the second one.
-local function get_levenshtein_edits(str_a, str_b, max_edits_count)
+local function get_levenshtein_edits(str_a, str_b, max_edits)
   local len_a, len_b = #str_a, #str_b
   if len_a == 0 then
     return { { type = "insertion", start_pos = 1, end_pos = len_b } }
@@ -141,9 +141,13 @@ local function get_levenshtein_edits(str_a, str_b, max_edits_count)
           -- Extend the edit
           cur_edit.start_pos = col
         else
-          if max_edits_count > 0 and #edits == max_edits_count - 1 then
+          if #edits == max_edits.count - 1 then
             -- Return a single insertion edit when a maximum number of edits is reached
-            return { { type = "insertion", start_pos = 1, end_pos = len_b } }, matrix
+            if max_edits.highlight_all then
+              return { { type = "insertion", start_pos = 1, end_pos = len_b } }
+            else
+              return {}
+            end
           end
           cur_edit = { type = edit_type, start_pos = col, end_pos = col }
           table.insert(edits, 1, cur_edit)
@@ -153,6 +157,10 @@ local function get_levenshtein_edits(str_a, str_b, max_edits_count)
       row = row - 1
     end
     col = col - 1
+  end
+
+  if col > 0 then
+    table.insert(edits, 1, { type = "insertion", start_pos = 1, end_pos = col })
   end
   return edits, matrix
 end
@@ -172,34 +180,57 @@ local idx_to_text_pos = function(s, idx)
   return line, idx - cur_idx
 end
 
-local get_multiline_highlights = function(new_text, edits)
+local get_multiline_highlights = function(new_text, edits, max_line_highlights)
   local hl_positions = {}
+  local skip_line = {}
+
   for _, edit in ipairs(edits) do
     local start_line, start_col = idx_to_text_pos(new_text, edit.start_pos)
-    local end_line, end_col = idx_to_text_pos(new_text, edit.end_pos)
-    if start_line == end_line then
-      table.insert(hl_positions, { line = start_line, start_col = start_col, end_col = end_col + 1 })
-    else
-      -- Highlight to the end of the first line
-      table.insert(hl_positions, { line = start_line, start_col = start_col, end_col = -1 })
-      -- Highlight all lines inbetween
-      for line = start_line + 1, end_line - 1 do
-        table.insert(hl_positions, { line = line, start_col = 0, end_col = -1 })
+    if not skip_line[start_line] then
+      if not hl_positions[start_line] then
+        hl_positions[start_line] = {}
       end
-      -- Highlight from the start of the last line
-      table.insert(hl_positions, { line = end_line, start_col = 0, end_col = end_col + 1 })
+      vim.v.errmsg = "checking" .. max_line_highlights.count
+      if #hl_positions[start_line] >= max_line_highlights.count - 1 then
+        if max_line_highlights.highlight_all then
+          hl_positions[start_line] = { { start_col = 0, end_col = -1 } }
+        else
+          hl_positions[start_line] = {}
+        end
+        skip_line[start_line] = true
+      else
+        local end_line, end_col = idx_to_text_pos(new_text, edit.end_pos)
+        if start_line == end_line then
+          table.insert(hl_positions[start_line], { start_col = start_col, end_col = end_col + 1 })
+        else
+          -- Highlight to the end of the first line
+          table.insert(hl_positions[start_line], { start_col = start_col, end_col = -1 })
+          -- Highlight all lines inbetween
+          for line = start_line + 1, end_line - 1 do
+            if not hl_positions[line] then
+              hl_positions[line] = {}
+            end
+            table.insert(hl_positions[line], { start_col = 0, end_col = -1 })
+          end
+          if not hl_positions[end_line] then
+            hl_positions[end_line] = {}
+          end
+          -- Highlight from the start of the last line
+          table.insert(hl_positions[end_line], { start_col = 0, end_col = end_col + 1 })
+        end
+      end
     end
   end
   return hl_positions
 end
 
-local apply_highlight = function(hl, line_offset, col_offset, bufnr, preview_ns)
+local apply_highlight = function(hl, line, line_offset, col_offset, bufnr, preview_ns)
   vim.api.nvim_buf_add_highlight(
     bufnr,
     preview_ns,
     "Substitute",
     -- TODO: can't the line number change too?
-    hl.line + line_offset,
+    line + line_offset,
     hl.start_col + col_offset,
     hl.end_col + col_offset
   )
@@ -211,6 +242,22 @@ M._strip_common_linewise = strip_common_linewise
 M._get_levenshtein_edits = get_levenshtein_edits
 M._idx_to_text_pos = idx_to_text_pos
 M._get_multiline_highlights = get_multiline_highlights
+
+local function get_max_line_highlights(max_line_highlights, b)
+  if type(max_line_highlights) == "number" then
+    return { count = max_line_highlights, highlight_all = false }
+  else
+    local result = type(max_line_highlights) == "table" and max_line_highlights or max_line_highlights(b)
+    -- Do not run the command when vim.validate fails
+    exit_early = true
+    vim.validate {
+      ["max_line_highlights.count"] = { result.count, "number" },
+      ["max_line_highlights.highlight_all"] = { result.highlight_all, "boolean", true },
+    }
+    exit_early = false
+    return result
+  end
+end
 
 -- Called when the user is still typing the command or the command arguments
 local function command_preview(opts, preview_ns, preview_buf)
@@ -254,18 +301,22 @@ local function command_preview(opts, preview_ns, preview_buf)
     local a, b, skipped_lines_count = strip_common_linewise(cached_lines, updated_lines)
     a = table.concat(cached_lines, "\n")
     b = table.concat(updated_lines, "\n")
-    local edits = get_levenshtein_edits(a, b)
-    for _, hl in ipairs(get_multiline_highlights(b, edits)) do
-      apply_highlight(hl, range[1] + skipped_lines_count, 0, bufnr, preview_ns)
+    local edits = get_levenshtein_edits(a, b, { count = -1 })
+    local max_line_highlights = get_max_line_highlights(opts.command.max_line_highlights, b)
+    for line_nr, hls_per_line in pairs(get_multiline_highlights(b, edits, max_line_highlights)) do
+      for _, hl in ipairs(hls_per_line) do
+        apply_highlight(hl, line_nr, range[1] + skipped_lines_count, 0, bufnr, preview_ns)
+      end
     end
   else
     -- In the other case, it is more efficient to compute the distance per line
     for i = 1, #updated_lines do
       local a, b, new_start, _ = strip_common(cached_lines[i], updated_lines[i])
-      local edits = get_levenshtein_edits(a, b, opts.command.max_line_highlights)
+      local max_line_highlights = get_max_line_highlights(opts.command.max_line_highlights, b)
+      local edits = get_levenshtein_edits(a, b, max_line_highlights)
       for _, edit in ipairs(edits) do
         local hl = { line = i - 1, start_col = edit.start_pos - 1, end_col = edit.end_pos }
-        apply_highlight(hl, range[1], new_start, bufnr, preview_ns)
+        apply_highlight(hl, i - 1, range[1], new_start, bufnr, preview_ns)
       end
     end
   end
@@ -283,7 +334,10 @@ local function execute_command(command)
     )
   end
   if scratch_buf then
-    vim.cmd(command)
+    if not exit_early then
+      vim.cmd(command)
+      exit_early = false
+    end
     vim.api.nvim_buf_delete(scratch_buf, {})
     scratch_buf = nil
   end
@@ -316,7 +370,7 @@ local validate_config = function(config)
   if defaults then
     for opt, _ in ipairs(defaults) do
       vim.validate {
-        ["defaults.max_line_highlights"] = { opt, "number" },
+        ["defaults.max_line_highlights"] = { opt, { "number", "table", "function" }, true },
       }
     end
   end
@@ -324,6 +378,7 @@ local validate_config = function(config)
   for _, command in pairs(config.commands) do
     vim.validate {
       cmd = { command.cmd, "string" },
+      ["command.max_line_highlights"] = { command.max_line_highlights, { "number", "table", "function" }, true },
     }
     for _, opt in ipairs(possible_opts) do
       command[opt] = command[opt] or (defaults and defaults[opt]) or M.defaults[opt]
