@@ -2,6 +2,7 @@ local M = {}
 
 M.defaults = {
   hl_group = "IncSearch",
+  max_highlights = 9999,
   max_line_highlights = { count = 20, disable_highlighting = true },
 }
 
@@ -243,19 +244,15 @@ M._idx_to_text_pos = idx_to_text_pos
 M._get_multiline_highlights = get_multiline_highlights
 
 local function get_max_line_highlights(max_line_highlights, b)
-  if type(max_line_highlights) == "number" then
-    return { count = max_line_highlights, disable_highlighting = true }
-  else
-    local result = type(max_line_highlights) == "table" and max_line_highlights or max_line_highlights(b)
-    -- Do not run the command when vim.validate fails
-    exit_early = true
-    vim.validate {
-      ["max_line_highlights.count"] = { result.count, "number" },
-      ["max_line_highlights.disable_highlighting"] = { result.disable_highlighting, "boolean" },
-    }
-    exit_early = false
-    return result
-  end
+  local result = type(max_line_highlights) == "table" and max_line_highlights or max_line_highlights(b)
+  -- Do not run the command when vim.validate fails
+  exit_early = true
+  vim.validate {
+    ["max_line_highlights.count"] = { result.count, "number" },
+    ["max_line_highlights.disable_highlighting"] = { result.disable_highlighting, "boolean" },
+  }
+  exit_early = false
+  return result
 end
 
 -- Called when the user is still typing the command or the command arguments
@@ -303,23 +300,30 @@ local function command_preview(opts, preview_ns, preview_buf)
     a = table.concat(cached_lines, "\n")
     b = table.concat(updated_lines, "\n")
     local edits = get_levenshtein_edits(a, b, { count = -1 })
-    local max_line_highlights = get_max_line_highlights(command.max_line_highlights, b)
-    for line_nr, hls_per_line in pairs(get_multiline_highlights(b, edits, max_line_highlights)) do
+    for line_nr, hls_per_line in
+      pairs(get_multiline_highlights(b, edits, { count = command.max_highlights, disable_highlighting = true }))
+    do
       for _, hl in ipairs(hls_per_line) do
         hl.hl_group = command.hl_group
         apply_highlight(hl, line_nr, range[1] + skipped_lines_count, 0, bufnr, preview_ns)
       end
     end
   else
+    local total_highlights_count = 0
     -- In the other case, it is more efficient to compute the distance per line
     for i = 1, #updated_lines do
+      if total_highlights_count >= command.max_highlights then
+        break
+      end
       local a, b, new_start, _ = strip_common(cached_lines[i], updated_lines[i])
       local max_line_highlights = get_max_line_highlights(command.max_line_highlights, b)
+      max_line_highlights.count = math.min(command.max_highlights - total_highlights_count, max_line_highlights.count)
       local edits = get_levenshtein_edits(a, b, max_line_highlights)
       for _, edit in ipairs(edits) do
         local hl = { line = i - 1, start_col = edit.start_pos - 1, end_col = edit.end_pos, hl_group = command.hl_group }
         apply_highlight(hl, i - 1, range[1], new_start, bufnr, preview_ns)
       end
+      total_highlights_count = total_highlights_count + #edits
     end
   end
   return 2
@@ -373,21 +377,23 @@ local validate_config = function(config)
     for opt, _ in ipairs(defaults) do
       vim.validate {
         ["defaults.hl_group"] = { opt, "string", true },
-        ["defaults.max_line_highlights"] = { opt, { "number", "table", "function" }, true },
+        ["defaults.max_highlights"] = { opt, "number", true },
+        ["defaults.max_line_highlights"] = { opt, { "table", "function" }, true },
       }
     end
   end
-  local possible_opts = { "hl_group", "max_line_highlights" }
+  local possible_opts = { "hl_group", "max_highlights", "max_line_highlights" }
   for _, command in pairs(config.commands) do
+    for _, opt in ipairs(possible_opts) do
+      command[opt] = command[opt] or (defaults and defaults[opt]) or M.defaults[opt]
+    end
     vim.validate {
       cmd = { command.cmd, "string" },
       args = { command.args, "string", true },
       ["command.hl_group"] = { command.hl_group, "string", true },
-      ["command.max_line_highlights"] = { command.max_line_highlights, { "number", "table", "function" }, true },
+      ["command.max_highlights"] = { command.max_highlights, "number", true },
+      ["command.max_line_highlights"] = { command.max_line_highlights, { "table", "function" }, true },
     }
-    for _, opt in ipairs(possible_opts) do
-      command[opt] = command[opt] or (defaults and defaults[opt]) or M.defaults[opt]
-    end
   end
 end
 

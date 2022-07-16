@@ -96,14 +96,14 @@ describe("Levenshtein edits", function()
     assert.are_same({}, actual)
   end)
 
-  it("returns early when max_edits_count is reached and disable_highlighting=false", function()
+  it("returns early when max_highlights_count is reached and disable_highlighting=false", function()
     local actual = cmd_preview._get_levenshtein_edits("abcd", "aXbXcXd", { count = 3, disable_highlighting = false })
     assert.are_same({
       { type = "insertion", start_pos = 1, end_pos = 7 },
     }, actual)
   end)
 
-  it("returns early when max_edits_count is reached and disable_highlighting=true", function()
+  it("returns early when max_highlights_count is reached and disable_highlighting=true", function()
     local actual = cmd_preview._get_levenshtein_edits("abcd", "aXbXcXd", { count = 3, disable_highlighting = true })
     assert.are_same({}, actual)
   end)
@@ -152,7 +152,7 @@ describe("Get multiline highlights from Levenshtein edits", function()
     }, actual)
   end)
 
-  it("returns early when max_edits_count is reached per line", function()
+  it("returns early when max_highlights_count is reached per line", function()
     local text = "XabX\nXab"
     local edits = {
       { type = "insertion", start_pos = 1, end_pos = 1 },
