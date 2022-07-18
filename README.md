@@ -1,5 +1,7 @@
 # command-preview.nvim
 
+![command_preview_demo](https://user-images.githubusercontent.com/40792180/179546128-ad49096e-7301-4929-9b24-2b08996bdff2.gif)
+
 The easiest way to create previewable commands in Neovim.
 Preview macros, the `:norm` command & more!
 
