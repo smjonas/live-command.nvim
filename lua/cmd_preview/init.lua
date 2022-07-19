@@ -1,7 +1,11 @@
 local M = {}
 
 M.defaults = {
-  hl_group = "IncSearch",
+  hl_groups = {
+    insertion = "DiffAdd",
+    replacement = "DiffChanged",
+    deletion = "DiffDelete",
+  },
   max_highlights = 9999,
   max_line_highlights = { count = 20, disable_highlighting = true },
 }
@@ -176,33 +180,33 @@ local idx_to_text_pos = function(s, idx)
 end
 
 local get_multiline_highlights = function(new_text, edits)
-  local hl_positions = {}
+  local hls = {}
   for _, edit in ipairs(edits) do
     local start_line, start_col = idx_to_text_pos(new_text, edit.start_pos)
-    if not hl_positions[start_line] then
-      hl_positions[start_line] = {}
+    if not hls[start_line] then
+      hls[start_line] = {}
     end
     local end_line, end_col = idx_to_text_pos(new_text, edit.end_pos)
     if start_line == end_line then
-      table.insert(hl_positions[start_line], { start_col = start_col, end_col = end_col + 1 })
+      table.insert(hls[start_line], { start_col = start_col, end_col = end_col + 1, edit_type = edit.type })
     else
       -- Highlight to the end of the first line
-      table.insert(hl_positions[start_line], { start_col = start_col, end_col = -1 })
+      table.insert(hls[start_line], { start_col = start_col, end_col = -1, edit_type = edit.type })
       -- Highlight all lines inbetween
       for line = start_line + 1, end_line - 1 do
-        if not hl_positions[line] then
-          hl_positions[line] = {}
+        if not hls[line] then
+          hls[line] = {}
         end
-        table.insert(hl_positions[line], { start_col = 0, end_col = -1 })
+        table.insert(hls[line], { start_col = 0, end_col = -1, edit_type = edit.type })
       end
-      if not hl_positions[end_line] then
-        hl_positions[end_line] = {}
+      if not hls[end_line] then
+        hls[end_line] = {}
       end
       -- Highlight from the start of the last line
-      table.insert(hl_positions[end_line], { start_col = 0, end_col = end_col + 1 })
+      table.insert(hls[end_line], { start_col = 0, end_col = end_col + 1, edit_type = edit.type })
     end
   end
-  return hl_positions
+  return hls
 end
 
 -- Expose functions to tests
@@ -219,7 +223,8 @@ local function preview_across_lines(cached_lines, updated_lines, apply_highlight
   local edits = get_levenshtein_edits(a, b)
   for line_nr, hls_per_line in pairs(get_multiline_highlights(b, edits)) do
     for _, hl in ipairs(hls_per_line) do
-      apply_highlight_cb(hl, line_nr, skipped_lines_count)
+      hl.line = line_nr
+      apply_highlight_cb(hl, skipped_lines_count)
     end
   end
 end
@@ -231,9 +236,13 @@ local function preview_per_line(cached_lines, updated_lines, apply_highlight_cb)
     -- max_line_highlights.count = math.min(command.max_highlights - total_highlights_count, max_line_highlights.count)
     local edits = get_levenshtein_edits(a, b)
     for _, edit in ipairs(edits) do
-      local hl = { line = line_nr - 1, start_col = edit.start_pos - 1, end_col = edit.end_pos }
-      apply_highlight_cb(hl, line_nr, skipped_columns_count)
-      -- apply_highlight(hl, line_nr - 1, range[1], new_start, bufnr, preview_ns)
+      local hl = {
+        line = line_nr,
+        start_col = edit.start_pos - 1,
+        end_col = edit.end_pos,
+        edit_type = edit.type,
+      }
+      apply_highlight_cb(hl, skipped_columns_count)
     end
   end
 end
@@ -299,15 +308,15 @@ local function command_preview(opts, preview_ns, preview_buf)
   -- New lines were inserted or lines were deleted.
   -- In this case, we need to compute the distance across all lines.
   if #updated_lines ~= #cached_lines then
-    preview_across_lines(cached_lines, updated_lines, function(hl, line_nr, skipped_lines_count)
-      hl.hl_group = command.hl_group
-      apply_highlight(hl, line_nr, range[1] + skipped_lines_count, 0, bufnr, preview_ns)
+    preview_across_lines(cached_lines, updated_lines, function(hl, skipped_lines_count)
+      hl.hl_group = command.hl_groups[hl.edit_type]
+      apply_highlight(hl, hl.line, range[1] + skipped_lines_count, 0, bufnr, preview_ns)
     end)
   else
     -- In the other case, it is more efficient to compute the distance per line
-    preview_per_line(cached_lines, updated_lines, function(hl, line_nr, skipped_columns_count)
-      hl.hl_group = command.hl_group
-      apply_highlight(hl, line_nr - 1, range[1], skipped_columns_count, bufnr, preview_ns)
+    preview_per_line(cached_lines, updated_lines, function(hl, skipped_columns_count)
+      hl.hl_group = command.hl_groups[hl.edit_type]
+      apply_highlight(hl, hl.line - 1, range[1], skipped_columns_count, bufnr, preview_ns)
     end)
   end
   return 2
@@ -342,7 +351,7 @@ end
 local create_user_commands = function(commands)
   for name, command in pairs(commands) do
     vim.api.nvim_create_user_command(name, function(opts)
-      -- TODO: correctly handle command
+      -- TODO: correctly handle range
       local range = opts.range == 2 and ("%s,%s"):format(opts.line1, opts.line2)
         or opts.range == 1 and tostring(opts.line1)
         or ""
@@ -364,7 +373,7 @@ local validate_config = function(config)
     defaults = { defaults, "table", true },
     commands = { config.commands, "table" },
   }
-  local possible_opts = { "hl_group", "max_highlights", "max_line_highlights" }
+  local possible_opts = { "hl_groups", "max_highlights", "max_line_highlights" }
   for _, command in pairs(config.commands) do
     for _, opt in ipairs(possible_opts) do
       command[opt] = command[opt] or (defaults and defaults[opt]) or M.defaults[opt]
@@ -372,7 +381,7 @@ local validate_config = function(config)
     vim.validate {
       cmd = { command.cmd, "string" },
       args = { command.args, "string", true },
-      ["command.hl_group"] = { command.hl_group, "string", true },
+      ["command.hl_groups"] = { command.hl_groups, "table", true },
       ["command.max_highlights"] = { command.max_highlights, "number", true },
       ["command.max_line_highlights"] = { command.max_line_highlights, { "table", "function" }, true },
     }
