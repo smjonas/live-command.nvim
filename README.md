@@ -5,8 +5,10 @@
 The easiest way to create previewable commands in Neovim.
 Preview macros, the `:norm` command & more!
 
-> :warning: This plugin is still in development. Make sure to watch this project on GitHub to
-> be notified when it's released!
+> :warning: This plugin is still in development and breaking changes may occur without prior announcement.
+> I will also reserve the right to force-push to the main branch which may prevent you from being able to
+> pull the recent changes depending on your plugin manager.
+> Make sure to watch this project on GitHub to be notified when it's released!
 
 ## :sparkles: Features
 - View the effects of any command on your buffer contents in real-time.

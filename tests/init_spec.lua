@@ -86,14 +86,16 @@ describe("Levenshtein edits", function()
 
   it("works for deletion at end of word", function()
     local actual = cmd_preview._get_levenshtein_edits("abcd", "ab", { count = 99 })
-    -- Deletion edits are not stored
-    assert.are_same({}, actual)
+    assert.are_same({
+      { type = "deletion", start_pos = 3, end_pos = 4 },
+    }, actual)
   end)
 
   it("works for deletion within word", function()
     local actual = cmd_preview._get_levenshtein_edits("abcd", "ad", { count = 99 })
-    -- Deletion edits are not stored
-    assert.are_same({}, actual)
+    assert.are_same({
+      { type = "deletion", start_pos = 2, end_pos = 3 },
+    }, actual)
   end)
 
   it("returns early when max_highlights_count is reached and disable_highlighting=false", function()
