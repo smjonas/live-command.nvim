@@ -110,7 +110,7 @@ local function get_levenshtein_edits(str_a, str_b)
   if len_a == 0 then
     return { { type = "insertion", start_pos = 1, end_pos = len_b } }
   elseif len_b == 0 then
-    return {}
+    return { { type = "deletion", start_pos = 1, end_pos = len_a, b_start_pos = 1 } }
   elseif str_a == str_b then
     return {}
   end
@@ -144,6 +144,7 @@ local function get_levenshtein_edits(str_a, str_b)
     if str_a:sub(row, row) ~= str_b:sub(col, col) then
       if matrix[row - 1][col] <= matrix[row][col - 1] and matrix[row - 1][col] <= matrix[row - 1][col - 1] then
         cur_edit = update_edits("deletion", cur_edit, row, edits)
+        cur_edit.b_start_pos = col + 1
         row = row - 1
         col = col + 1
       elseif matrix[row][col - 1] <= matrix[row - 1][col] and matrix[row][col - 1] <= matrix[row - 1][col - 1] then
@@ -160,8 +161,30 @@ local function get_levenshtein_edits(str_a, str_b)
 
   if col > 0 then
     table.insert(edits, 1, { type = "insertion", start_pos = 1, end_pos = col })
+  elseif row > 0 then
+    table.insert(edits, 1, { type = "deletion", start_pos = 1, end_pos = row, b_start_pos = col + 1 })
   end
   return edits, matrix
+end
+
+-- Given a string a that has been transformed into string b using a set of editing
+-- operations, returns b without any deletion operations applied to it.
+local undo_deletions = function(a, b, edits)
+  local function string_insert(str_1, str_2, pos)
+    return str_1:sub(1, pos) .. str_2 .. str_1:sub(pos + 1)
+  end
+  local updated_b = b
+  local offset = 0
+
+  for _, edit in ipairs(edits) do
+    if edit.type == "deletion" then
+      local deleted_chars = a:sub(edit.start_pos, edit.end_pos)
+      updated_b = string_insert(updated_b, deleted_chars, edit.start_pos + offset - 1)
+    elseif edit.type == "insertion" then
+      offset = offset + (edit.end_pos - edit.start_pos)
+    end
+  end
+  return updated_b
 end
 
 -- Returns the 0-indexed line and column numbers of the idx-th character of s in s.
@@ -169,41 +192,50 @@ end
 local idx_to_text_pos = function(s, idx)
   local line = 0
   local cur_idx = 1
-  for i = 1, idx do
-    if s:sub(i, i) == "\n" then
+  for i = 2, idx do
+    if s:sub(i - 1, i - 1) == "\n" then
       line = line + 1
-      -- Line begins at the next character
-      cur_idx = i + 1
+      -- Line begins at the current character
+      cur_idx = i
     end
   end
   return line, idx - cur_idx
 end
 
-local get_multiline_highlights = function(new_text, edits)
+local get_multiline_highlights = function(a, b, edits)
+  -- TODO: only use 1-based indices
+  b = undo_deletions(a, b, edits)
   local hls = {}
   for _, edit in ipairs(edits) do
-    local start_line, start_col = idx_to_text_pos(new_text, edit.start_pos)
+    local start_line, start_col = idx_to_text_pos(b, edit.start_pos)
+    -- Do not create a highlight for a single newline character at the end of a line,
+    -- instead jump to the next line
+    if b:sub(edit.start_pos, edit.start_pos) == "\n" then
+      start_line = start_line + 1
+      start_col = 0
+    end
     if not hls[start_line] then
       hls[start_line] = {}
     end
-    local end_line, end_col = idx_to_text_pos(new_text, edit.end_pos)
+    local end_line, end_col = idx_to_text_pos(b, edit.end_pos)
+
     if start_line == end_line then
-      table.insert(hls[start_line], { start_col = start_col, end_col = end_col + 1, edit_type = edit.type })
+      table.insert(hls[start_line], { start_col = start_col, end_col = end_col + 1 })
     else
       -- Highlight to the end of the first line
-      table.insert(hls[start_line], { start_col = start_col, end_col = -1, edit_type = edit.type })
+      table.insert(hls[start_line], { start_col = start_col, end_col = -1 })
       -- Highlight all lines inbetween
       for line = start_line + 1, end_line - 1 do
         if not hls[line] then
           hls[line] = {}
         end
-        table.insert(hls[line], { start_col = 0, end_col = -1, edit_type = edit.type })
+        table.insert(hls[line], { start_col = 0, end_col = -1 })
       end
       if not hls[end_line] then
         hls[end_line] = {}
       end
       -- Highlight from the start of the last line
-      table.insert(hls[end_line], { start_col = 0, end_col = end_col + 1, edit_type = edit.type })
+      table.insert(hls[end_line], { start_col = 0, end_col = end_col + 1 })
     end
   end
   return hls
@@ -213,6 +245,7 @@ end
 M._strip_common = strip_common
 M._strip_common_linewise = strip_common_linewise
 M._get_levenshtein_edits = get_levenshtein_edits
+M._undo_deletions = undo_deletions
 M._idx_to_text_pos = idx_to_text_pos
 M._get_multiline_highlights = get_multiline_highlights
 
@@ -221,7 +254,7 @@ local function preview_across_lines(cached_lines, updated_lines, apply_highlight
   a = table.concat(cached_lines, "\n")
   b = table.concat(updated_lines, "\n")
   local edits = get_levenshtein_edits(a, b)
-  for line_nr, hls_per_line in pairs(get_multiline_highlights(b, edits)) do
+  for line_nr, hls_per_line in pairs(get_multiline_highlights(a, b, edits)) do
     for _, hl in ipairs(hls_per_line) do
       hl.line = line_nr
       apply_highlight_cb(hl, skipped_lines_count)
@@ -238,8 +271,8 @@ local function preview_per_line(cached_lines, updated_lines, apply_highlight_cb)
     for _, edit in ipairs(edits) do
       local hl = {
         line = line_nr,
-        start_col = edit.start_pos - 1,
-        end_col = edit.end_pos,
+        start_col = edit.type == "deletion" and edit.b_start_pos - 1 or edit.start_pos - 1,
+        end_col = edit.type == "deletion" and edit.b_start_pos + (edit.end_pos - edit.start_pos) or edit.end_pos,
         edit_type = edit.type,
       }
       apply_highlight_cb(hl, skipped_columns_count)
@@ -277,6 +310,7 @@ local function command_preview(opts, preview_ns, preview_buf)
 
   if not scratch_buf then
     prev_lazyredraw = vim.o.lazyredraw
+    -- TODO: fix cursorline restoration
     prev_cursorline = vim.wo.cursorline
     vim.o.lazyredraw = true
     vim.wo.cursorline = false
