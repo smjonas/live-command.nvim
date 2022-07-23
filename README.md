@@ -19,7 +19,7 @@ Neovim nightly (0.8).
 
 ## :rocket: Getting started
 Install using your favorite package manager and call the setup function with a table of
-commands to create. Here is an example that creates a previewable `:Norm` command (using packer.nvim):
+commands to create. Here is an example that creates a previewable `:Norm` command:
 ```lua
 use {
   "smjonas/live-command.nvim",
@@ -42,7 +42,7 @@ Here is a list of available settings:
 | Key         | Type     | Description                                                                                                                                | Optional? |
 | ----------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------ | --------- |
 | cmd         | string   | The name of an existing command run in the preview callback.                                                                               | No        |
-| args        | string   | Arguments passed to the command. If not provided, the arguments are supplied from the command-line while the user is typing the command.   | Yes       |
+| args        | string   | Arguments passed to the command. If `nil`, the arguments are supplied from the command-line while the user is typing the command.   | Yes       |
 
 ### Example
 The following example creates three `:Regx` commands where `x` is the name of a register (`a`, `b` or `c`).
@@ -60,6 +60,21 @@ require("live_command").setup {
 \
 All of the following options can be set globally (for all created commands), or per individual command.
 
+To change the default options globally, use the `defaults` table. The defaults are:
+
+```lua
+require("live_command").setup {
+  defaults = {
+    enable_highlighting = true,
+    hl_groups = {
+      insertion = "DiffAdd",
+      replacement = "DiffChanged",
+      deletion = "DiffDelete",
+    },
+  },
+}
+```
+
 ---
 
 `enable_highlighting: boolean`
@@ -70,11 +85,13 @@ Whether highlights should be shown. If `false`, only text changes are shown.
 
 ---
 
-`hl_group: string`
+`hl_groups: table<string, string?>`
 
-Default: `IncSearch`
+Default: `{ insertion = "DiffAdd", replacement = "DiffChanged", deletion = "DiffDelete" }`
 
-The highlight group used for highlighting buffer changes.
+A list of highlight groups per edit type (insertion, replacement or deletion) used for highlighting buffer changes.
+The value can be `nil` in which case no highlights will be shown for that type. If `hl_groups.deletion` is `nil`,
+deletion edits will not be undone which is otherwise done to make them visible.
 
 ---
 
@@ -96,16 +113,4 @@ If a table, it must contain the keys `count` and `disable_highlights`.
 If a function, it will be called with the contents of the updated line(s) and must also return a table with the same keys.
 If at least `count` highlights have been computed per line, the whole line is either shown without any highlights (if `disable_highlights = true`) or fully highlighted.
 The exact argument depends on which editing operations are applied to the line(s).
-
----
-
-### Global options
-
-To set options globally, use the `defaults` table:
-```lua
-require("live_command").setup {
-  defaults = { hl_group = "DiffAdd" },
-  -- commands = ...
-}
-```
 

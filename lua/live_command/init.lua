@@ -260,29 +260,38 @@ local function preview_across_lines(cached_lines, updated_lines, set_lines, appl
   end
 end
 
-local function preview_per_line(cached_lines, updated_lines, set_line, apply_highlight_cb)
+local function preview_per_line(cached_lines, updated_lines, hl_groups, set_line, set_lines, apply_highlight_cb)
+  local keep_deletions = hl_groups["deletion"] == nil
+  if keep_deletions then
+    set_lines(updated_lines)
+  end
+
   for line_nr = 1, #updated_lines do
     local a, b, skipped_columns_start, skipped_columns_end = strip_common(cached_lines[line_nr], updated_lines[line_nr])
     local edits = get_levenshtein_edits(a, b)
 
-    local line = cached_lines[line_nr]
-    -- Add back the deleted substrings
-    local suffix = skipped_columns_end > 0 and line:sub(#line - skipped_columns_end + 1) or ""
-    set_line(line_nr, line:sub(1, skipped_columns_start) .. undo_deletions(a, b, edits) .. suffix)
+    if not keep_deletions then
+      local line = cached_lines[line_nr]
+      -- Add back the deleted substrings
+      local suffix = skipped_columns_end > 0 and line:sub(#line - skipped_columns_end + 1) or ""
+      set_line(line_nr, line:sub(1, skipped_columns_start) .. undo_deletions(a, b, edits) .. suffix)
+    end
 
     for _, edit in ipairs(edits) do
-      local start_col = edit.b_start_pos or edit.start_pos
-      local end_col = edit.b_start_pos and edit.b_start_pos + (edit.end_pos - edit.start_pos) or edit.end_pos
-      start_col = start_col + skipped_columns_start
-      end_col = end_col + skipped_columns_start
+      if hl_groups[edit.type] ~= nil then
+        local start_col = edit.b_start_pos or edit.start_pos
+        local end_col = edit.b_start_pos and edit.b_start_pos + (edit.end_pos - edit.start_pos) or edit.end_pos
+        start_col = start_col + skipped_columns_start
+        end_col = end_col + skipped_columns_start
 
-      local hl = {
-        line = line_nr,
-        start_col = start_col,
-        end_col = end_col,
-        type = edit.type,
-      }
-      apply_highlight_cb(hl)
+        local hl = {
+          line = line_nr,
+          start_col = start_col,
+          end_col = end_col,
+          hl_group = hl_groups[edit.type],
+        }
+        apply_highlight_cb(hl)
+      end
     end
   end
 end
@@ -375,10 +384,11 @@ local function command_preview(opts, preview_ns, preview_buf)
     end)
   else
     -- In the other case, it is more efficient to compute the distance per line
-    preview_per_line(cached_lines, updated_lines, function(line_nr, line)
+    preview_per_line(cached_lines, updated_lines, command.hl_groups, function(line_nr, line)
       vim.api.nvim_buf_set_lines(bufnr, line_nr - 1 + range[1], line_nr + range[1], false, { line })
+    end, function(lines)
+      vim.api.nvim_buf_set_lines(bufnr, range[1], range[2], false, lines)
     end, function(hl)
-      hl.hl_group = command.hl_groups[hl.type]
       hl.line = hl.line + range[1]
       apply_highlight(hl, hl.line - 1, bufnr, preview_ns)
     end)
