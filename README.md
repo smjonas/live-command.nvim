@@ -62,6 +62,14 @@ All of the following options can be set globally (for all created commands), or 
 
 ---
 
+`enable_highlighting: boolean`
+
+Default: `true`
+
+Whether highlights should be shown. If `false`, only text changes are shown.
+
+---
+
 `hl_group: string`
 
 Default: `IncSearch`

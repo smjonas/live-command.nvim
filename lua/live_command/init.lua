@@ -1,6 +1,7 @@
 local M = {}
 
 M.defaults = {
+  enable_highlighting = true,
   hl_groups = {
     insertion = "DiffAdd",
     replacement = "DiffChanged",
@@ -353,6 +354,12 @@ local function command_preview(opts, preview_ns, preview_buf)
   local updated_lines = vim.api.nvim_buf_get_lines(scratch_buf, 0, -1, false) or {}
   vim.api.nvim_set_current_buf(bufnr)
 
+  vim.v.errmsg = command.enable_highlighting and "true" or "false"
+  if not command.enable_highlighting then
+    vim.api.nvim_buf_set_lines(bufnr, range[1], range[2], false, updated_lines)
+    return 2
+  end
+
   local set_lines = function(lines)
     vim.v.errmsg = vim.inspect(lines)
     -- Update the original buffer
@@ -430,14 +437,19 @@ local validate_config = function(config)
     defaults = { defaults, "table", true },
     commands = { config.commands, "table" },
   }
-  local possible_opts = { "hl_groups", "max_highlights", "max_line_highlights" }
+  local possible_opts = { "enable_highlighting", "hl_groups", "max_highlights", "max_line_highlights" }
   for _, command in pairs(config.commands) do
     for _, opt in ipairs(possible_opts) do
-      command[opt] = command[opt] or (defaults and defaults[opt]) or M.defaults[opt]
+      if command[opt] == nil and defaults and defaults[opt] ~= nil then
+        command[opt] = defaults[opt]
+      else
+        command[opt] = M.defaults[opt]
+      end
     end
     vim.validate {
       cmd = { command.cmd, "string" },
       args = { command.args, "string", true },
+      ["command.enable_highlighting"] = { command.enable_highlighting, "boolean", true },
       ["command.hl_groups"] = { command.hl_groups, "table", true },
       ["command.max_highlights"] = { command.max_highlights, "number", true },
       ["command.max_line_highlights"] = { command.max_line_highlights, { "table", "function" }, true },
