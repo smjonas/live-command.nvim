@@ -17,47 +17,42 @@ local prev_cursorline, prev_lazyredraw
 -- and returns the updated strings and start position.
 local function strip_common(str_a, str_b)
   local len_a, len_b = #str_a, #str_b
-  local skipped_lines_count = 0
-  local last_newline_pos = 0
+  if str_a == str_b then
+    return "", "", len_a, 0
+  end
 
-  local skipped_columns_count
+  local skipped_cols_start
   -- Strip common prefix
   for i = 1, math.min(len_a, len_b) do
-    local char_a = str_a:sub(i, i)
-    if char_a == "\n" then
-      skipped_lines_count = skipped_lines_count + 1
-      -- Reset offset
-      last_newline_pos = i
-    end
-    if char_a == str_b:sub(i, i) then
-      skipped_columns_count = i
+    if str_a:sub(i, i) == str_b:sub(i, i) then
+      skipped_cols_start = i
     else
       break
     end
   end
 
-  if skipped_columns_count then
-    str_a = str_a:sub(skipped_columns_count + 1)
-    str_b = str_b:sub(skipped_columns_count + 1)
-    len_a = len_a - skipped_columns_count
-    len_b = len_b - skipped_columns_count
+  if skipped_cols_start then
+    str_a = str_a:sub(skipped_cols_start + 1)
+    str_b = str_b:sub(skipped_cols_start + 1)
+    len_a = len_a - skipped_cols_start
+    len_b = len_b - skipped_cols_start
   end
 
   -- Strip common suffix
-  local end_offset
+  local skipped_cols_end
   for i = 0, math.min(len_a, len_b) do
     if str_a:sub(len_a - i, len_a - i) == str_b:sub(len_b - i, len_b - i) then
-      end_offset = i + 1
+      skipped_cols_end = i + 1
     else
       break
     end
   end
 
-  if end_offset then
-    str_a = str_a:sub(1, len_a - end_offset)
-    str_b = str_b:sub(1, len_b - end_offset)
+  if skipped_cols_end then
+    str_a = str_a:sub(1, len_a - skipped_cols_end)
+    str_b = str_b:sub(1, len_b - skipped_cols_end)
   end
-  return str_a, str_b, skipped_columns_count and (skipped_columns_count - last_newline_pos) or 0, skipped_lines_count
+  return str_a, str_b, skipped_cols_start or 0, skipped_cols_end or 0
 end
 
 local function strip_common_linewise(lines_a, lines_b)
@@ -106,13 +101,15 @@ end
 -- Returns a list of insertion and replacement operations
 -- that turn the first string into the second one.
 local function get_levenshtein_edits(str_a, str_b)
+  if str_a == str_b then
+    return {}
+  end
+
   local len_a, len_b = #str_a, #str_b
   if len_a == 0 then
     return { { type = "insertion", start_pos = 1, end_pos = len_b } }
   elseif len_b == 0 then
     return { { type = "deletion", start_pos = 1, end_pos = len_a, b_start_pos = 1 } }
-  elseif str_a == str_b then
-    return {}
   end
 
   local matrix = {}
@@ -143,6 +140,7 @@ local function get_levenshtein_edits(str_a, str_b)
   while row > 0 and col > 0 do
     if str_a:sub(row, row) ~= str_b:sub(col, col) then
       if matrix[row - 1][col] <= matrix[row][col - 1] and matrix[row - 1][col] <= matrix[row - 1][col - 1] then
+        -- TODO: continue fine-tuning edits
         cur_edit = update_edits("deletion", cur_edit, row, edits)
         cur_edit.b_start_pos = col + 1
         row = row - 1
@@ -171,7 +169,7 @@ end
 -- operations, returns b without any deletion operations applied to it.
 local undo_deletions = function(a, b, edits)
   local function string_insert(str_1, str_2, pos)
-    return str_1:sub(1, pos) .. str_2 .. str_1:sub(pos + 1)
+    return str_1:sub(1, pos - 1) .. str_2 .. str_1:sub(pos)
   end
   local updated_b = b
   local offset = 0
@@ -179,9 +177,8 @@ local undo_deletions = function(a, b, edits)
   for _, edit in ipairs(edits) do
     if edit.type == "deletion" then
       local deleted_chars = a:sub(edit.start_pos, edit.end_pos)
-      updated_b = string_insert(updated_b, deleted_chars, edit.start_pos + offset - 1)
-    elseif edit.type == "insertion" then
-      offset = offset + (edit.end_pos - edit.start_pos)
+      updated_b = string_insert(updated_b, deleted_chars, edit.b_start_pos + offset)
+      offset = offset + (edit.end_pos - edit.start_pos) + 1
     end
   end
   return updated_b
@@ -241,19 +238,19 @@ local get_multiline_highlights = function(a, b, edits)
   return hls
 end
 
--- Expose functions to tests
-M._strip_common = strip_common
-M._strip_common_linewise = strip_common_linewise
-M._get_levenshtein_edits = get_levenshtein_edits
-M._undo_deletions = undo_deletions
-M._idx_to_text_pos = idx_to_text_pos
-M._get_multiline_highlights = get_multiline_highlights
-
-local function preview_across_lines(cached_lines, updated_lines, apply_highlight_cb)
+local function preview_across_lines(cached_lines, updated_lines, set_lines, apply_highlight_cb)
   local a, b, skipped_lines_count = strip_common_linewise(cached_lines, updated_lines)
-  a = table.concat(cached_lines, "\n")
-  b = table.concat(updated_lines, "\n")
+  a = table.concat(a, "\n")
+  b = table.concat(b, "\n")
   local edits = get_levenshtein_edits(a, b)
+
+  -- vim.v.errmsg = "Assert failed" .. (#vim.split(undo_deletions(a, b, edits), "\n") == #updated_lines - skipped_lines_count) and "true" or "")
+  -- Undo deletion operations in all lines after the skipped ones
+  for line_nr, line in ipairs(vim.split(undo_deletions(a, b, edits), "\n")) do
+    updated_lines[skipped_lines_count + line_nr] = line
+  end
+  set_lines(updated_lines)
+
   for line_nr, hls_per_line in pairs(get_multiline_highlights(a, b, edits)) do
     for _, hl in ipairs(hls_per_line) do
       hl.line = line_nr
@@ -262,33 +259,53 @@ local function preview_across_lines(cached_lines, updated_lines, apply_highlight
   end
 end
 
-local function preview_per_line(cached_lines, updated_lines, apply_highlight_cb)
+local function preview_per_line(cached_lines, updated_lines, set_line, apply_highlight_cb)
   for line_nr = 1, #updated_lines do
-    local a, b, skipped_columns_count, _ = strip_common(cached_lines[line_nr], updated_lines[line_nr])
-    -- local max_line_highlights = get_max_line_highlights(command.max_line_highlights, b)
-    -- max_line_highlights.count = math.min(command.max_highlights - total_highlights_count, max_line_highlights.count)
+    local a, b, skipped_columns_start, skipped_columns_end = strip_common(cached_lines[line_nr], updated_lines[line_nr])
     local edits = get_levenshtein_edits(a, b)
+
+    local line = cached_lines[line_nr]
+    -- Add back the deleted substrings
+    local suffix = skipped_columns_end > 0 and line:sub(#line - skipped_columns_end + 1) or ""
+    set_line(line_nr, line:sub(1, skipped_columns_start) .. undo_deletions(a, b, edits) .. suffix)
+
     for _, edit in ipairs(edits) do
+      local start_col = edit.b_start_pos or edit.start_pos
+      local end_col = edit.b_start_pos and edit.b_start_pos + (edit.end_pos - edit.start_pos) or edit.end_pos
+      start_col = start_col + skipped_columns_start
+      end_col = end_col + skipped_columns_start
+
       local hl = {
         line = line_nr,
-        start_col = edit.type == "deletion" and edit.b_start_pos - 1 or edit.start_pos - 1,
-        end_col = edit.type == "deletion" and edit.b_start_pos + (edit.end_pos - edit.start_pos) or edit.end_pos,
-        edit_type = edit.type,
+        start_col = start_col,
+        end_col = end_col,
+        type = edit.type,
       }
-      apply_highlight_cb(hl, skipped_columns_count)
+      apply_highlight_cb(hl)
     end
   end
 end
 
-local apply_highlight = function(hl, line, line_offset, col_offset, bufnr, preview_ns)
+-- Expose functions to tests
+M._strip_common = strip_common
+M._strip_common_linewise = strip_common_linewise
+M._get_levenshtein_edits = get_levenshtein_edits
+M._undo_deletions = undo_deletions
+M._idx_to_text_pos = idx_to_text_pos
+M._get_multiline_highlights = get_multiline_highlights
+M._preview_across_lines = preview_across_lines
+M._preview_per_line = preview_per_line
+
+local apply_highlight = function(hl, line, bufnr, preview_ns)
   vim.api.nvim_buf_add_highlight(
     bufnr,
     preview_ns,
     hl.hl_group,
     -- TODO: can't the line number change too?
-    line + line_offset,
-    hl.start_col + col_offset,
-    hl.end_col + col_offset
+    line,
+    hl.start_col - 1,
+    hl.end_col
+    -- TODO: document that everything is 1-based
   )
 end
 
@@ -334,23 +351,29 @@ local function command_preview(opts, preview_ns, preview_buf)
   vim.v.errmsg = prev_errmsg
 
   local updated_lines = vim.api.nvim_buf_get_lines(scratch_buf, 0, -1, false) or {}
-
-  -- Update the original buffer
   vim.api.nvim_set_current_buf(bufnr)
-  vim.api.nvim_buf_set_lines(bufnr, range[1], range[2], false, updated_lines)
+
+  local set_lines = function(lines)
+    vim.v.errmsg = vim.inspect(lines)
+    -- Update the original buffer
+    -- vim.api.nvim_buf_set_lines(bufnr, range[1], range[2], false, lines)
+  end
 
   -- New lines were inserted or lines were deleted.
   -- In this case, we need to compute the distance across all lines.
   if #updated_lines ~= #cached_lines then
-    preview_across_lines(cached_lines, updated_lines, function(hl, skipped_lines_count)
-      hl.hl_group = command.hl_groups[hl.edit_type]
+    preview_across_lines(cached_lines, updated_lines, set_lines, function(hl, skipped_lines_count)
+      hl.hl_group = command.hl_groups[hl.type]
       apply_highlight(hl, hl.line, range[1] + skipped_lines_count, 0, bufnr, preview_ns)
     end)
   else
     -- In the other case, it is more efficient to compute the distance per line
-    preview_per_line(cached_lines, updated_lines, function(hl, skipped_columns_count)
-      hl.hl_group = command.hl_groups[hl.edit_type]
-      apply_highlight(hl, hl.line - 1, range[1], skipped_columns_count, bufnr, preview_ns)
+    preview_per_line(cached_lines, updated_lines, function(line_nr, line)
+      vim.api.nvim_buf_set_lines(bufnr, line_nr - 1 + range[1], line_nr + range[1], false, { line })
+    end, function(hl)
+      hl.hl_group = command.hl_groups[hl.type]
+      hl.line = hl.line + range[1]
+      apply_highlight(hl, hl.line - 1, bufnr, preview_ns)
     end)
   end
   return 2
