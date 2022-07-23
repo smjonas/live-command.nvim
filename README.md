@@ -1,18 +1,18 @@
-# command-preview.nvim
+# live-command.nvim
 
-![command_preview_demo](https://user-images.githubusercontent.com/40792180/179546128-ad49096e-7301-4929-9b24-2b08996bdff2.gif)
+![live_command_demo](https://user-images.githubusercontent.com/40792180/179546128-ad49096e-7301-4929-9b24-2b08996bdff2.gif)
 
-The easiest way to create previewable commands in Neovim.
-Preview macros, the `:norm` command & more!
+View the effects of any command on your buffer contents live. Preview macros, the `:norm` command & more!
 
 > :warning: This plugin is still in development and breaking changes may occur without prior announcement.
 > I will also reserve the right to force-push to the main branch which may prevent you from being able to
 > pull the recent changes depending on your plugin manager.
 > Make sure to watch this project on GitHub to be notified when it's released!
 
-## :sparkles: Features
-- View the effects of any command on your buffer contents in real-time.
-- Smart highlighting based on the Levenshtein distance algorithm, heavily optimized for performance.
+## :sparkles: Goals and Features
+- Make it extremely simple to create previewable commands in Neovim
+- Smart highlighting based on the Levenshtein distance algorithm, heavily optimized for performance
+- View individual insertions, replacements and deletions
 
 ## Requirements
 Neovim nightly (0.8).
@@ -22,9 +22,9 @@ Install using your favorite package manager and call the setup function with a t
 commands to create. Here is an example that creates a previewable `:Norm` command (using packer.nvim):
 ```lua
 use {
-  "smjonas/command-preview.nvim",
+  "smjonas/live-command.nvim",
   config = function()
-    require("cmd_preview").setup {
+    require("live_command").setup {
       commands = {
         Norm = { cmd = "norm" },
       },
@@ -53,7 +53,7 @@ for _, register in ipairs { "a", "b", "c" } do
   commands["Reg" .. register] = { cmd = "norm", args = "@" .. register }
 end
 
-require("cmd_preview").setup {
+require("live_command").setup {
   commands = commands,
 }
 ```
@@ -95,7 +95,7 @@ The exact argument depends on which editing operations are applied to the line(s
 
 To set options globally, use the `defaults` table:
 ```lua
-require("cmd_preview").setup {
+require("live_command").setup {
   defaults = { hl_group = "DiffAdd" },
   -- commands = ...
 }
