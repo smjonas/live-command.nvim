@@ -6,7 +6,7 @@ View the effects of any command on your buffer contents live. Preview macros, th
 
 > :warning: This plugin is still in development and breaking changes may occur without prior announcement.
 > I will also reserve the right to force-push to the main branch which may prevent you from being able to
-> pull the recent changes depending on your plugin manager.
+> pull the recent changes with your plugin manager.
 > Make sure to watch this project on GitHub to be notified when it's released!
 
 ## :sparkles: Goals and Features
@@ -92,25 +92,3 @@ Default: `{ insertion = "DiffAdd", replacement = "DiffChanged", deletion = "Diff
 A list of highlight groups per edit type (insertion, replacement or deletion) used for highlighting buffer changes.
 The value can be `nil` in which case no highlights will be shown for that type. If `hl_groups.deletion` is `nil`,
 deletion edits will not be undone which is otherwise done to make them visible.
-
----
-
-`max_highlights: number`
-
-Default: `9999`
-
-Determines the maximum number of highlights shown in total. Note that the actual number of highlights may be slightly higher than this value.
-You can lower this value to improve performance in some cases.
-
----
-
-`max_line_highlights: table | function: string -> table`
-
-Default: `{ count = 15, disable_highlights = true }`
-
-Determines the maximum amount of highlights per line. This option is mostly used to avoid a distracting amount of highlights and has negligible performance impact.
-If a table, it must contain the keys `count` and `disable_highlights`.
-If a function, it will be called with the contents of the updated line(s) and must also return a table with the same keys.
-If at least `count` highlights have been computed per line, the whole line is either shown without any highlights (if `disable_highlights = true`) or fully highlighted.
-The exact argument depends on which editing operations are applied to the line(s).
-

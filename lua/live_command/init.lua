@@ -1,4 +1,7 @@
-local M = {}
+local M = {
+  utils = nil,
+  provider = nil,
+}
 
 M.defaults = {
   enable_highlighting = true,
@@ -7,252 +10,25 @@ M.defaults = {
     replacement = "DiffChanged",
     deletion = "DiffDelete",
   },
-  max_highlights = 9999,
-  max_line_highlights = { count = 20, disable_highlighting = true },
 }
 
 local scratch_buf, cached_lines, exit_early
 local prev_cursorline, prev_lazyredraw
 
--- Strips the common prefix and suffix from the two strings
--- and returns the updated strings and start position.
-local function strip_common(str_a, str_b)
-  local len_a, len_b = #str_a, #str_b
-  if str_a == str_b then
-    return "", "", len_a, 0
-  end
-
-  local skipped_cols_start
-  -- Strip common prefix
-  for i = 1, math.min(len_a, len_b) do
-    if str_a:sub(i, i) == str_b:sub(i, i) then
-      skipped_cols_start = i
-    else
-      break
-    end
-  end
-
-  if skipped_cols_start then
-    str_a = str_a:sub(skipped_cols_start + 1)
-    str_b = str_b:sub(skipped_cols_start + 1)
-    len_a = len_a - skipped_cols_start
-    len_b = len_b - skipped_cols_start
-  end
-
-  -- Strip common suffix
-  local skipped_cols_end
-  for i = 0, math.min(len_a, len_b) do
-    if str_a:sub(len_a - i, len_a - i) == str_b:sub(len_b - i, len_b - i) then
-      skipped_cols_end = i + 1
-    else
-      break
-    end
-  end
-
-  if skipped_cols_end then
-    str_a = str_a:sub(1, len_a - skipped_cols_end)
-    str_b = str_b:sub(1, len_b - skipped_cols_end)
-  end
-  return str_a, str_b, skipped_cols_start or 0, skipped_cols_end or 0
-end
-
-local function strip_common_linewise(lines_a, lines_b)
-  local len_a, len_b = #lines_a, #lines_b
-  -- Remove common lines at beginning / end
-  local start_lines_count = 0
-  for i = 1, math.min(len_a, len_b) do
-    if lines_a[i] == lines_b[i] then
-      start_lines_count = i
-    else
-      break
-    end
-  end
-
-  local end_lines_count = 0
-  for i = 0, math.min(len_a - start_lines_count, len_b - start_lines_count) - 1 do
-    if lines_a[len_a - i] == lines_b[len_b - i] then
-      end_lines_count = i + 1
-    else
-      break
-    end
-  end
-
-  local new_a, new_b = {}, {}
-  for i = start_lines_count + 1, len_a - end_lines_count do
-    table.insert(new_a, lines_a[i])
-  end
-  for i = start_lines_count + 1, len_b - end_lines_count do
-    table.insert(new_b, lines_b[i])
-  end
-  return new_a, new_b, start_lines_count
-end
-
-local function update_edits(edit_type, cur_edit, cur_start_pos, edits)
-  if cur_edit.type == edit_type and cur_edit.start_pos == cur_start_pos + 1 then
-    -- Extend the edit
-    cur_edit.start_pos = cur_start_pos
-  else
-    -- Create a new edit
-    cur_edit = { type = edit_type, start_pos = cur_start_pos, end_pos = cur_start_pos }
-    table.insert(edits, 1, cur_edit)
-  end
-  return cur_edit
-end
-
--- Returns a list of insertion and replacement operations
--- that turn the first string into the second one.
-local function get_levenshtein_edits(str_a, str_b)
-  if str_a == str_b then
-    return {}
-  end
-
-  local len_a, len_b = #str_a, #str_b
-  if len_a == 0 then
-    return { { type = "insertion", start_pos = 1, end_pos = len_b } }
-  elseif len_b == 0 then
-    return { { type = "deletion", start_pos = 1, end_pos = len_a, b_start_pos = 1 } }
-  end
-
-  local matrix = {}
-  -- Initialize the base matrix values
-  for row = 0, len_a do
-    matrix[row] = {}
-    matrix[row][0] = row
-  end
-  for col = 0, len_b do
-    matrix[0][col] = col
-  end
-
-  local cost = 1
-  local min = math.min
-  -- Actual Levenshtein algorithm
-  for row = 1, len_a do
-    for col = 1, len_b do
-      cost = str_a:sub(row, row) == str_b:sub(col, col) and 0 or 1
-      matrix[row][col] = min(matrix[row - 1][col] + 1, matrix[row][col - 1] + 1, matrix[row - 1][col - 1] + cost)
-    end
-  end
-
-  -- Start at the bottom right of the matrix
-  local row, col = len_a, len_b
-  local edits = {}
-  local cur_edit = {}
-
-  while row > 0 and col > 0 do
-    if str_a:sub(row, row) ~= str_b:sub(col, col) then
-      if matrix[row - 1][col] <= matrix[row][col - 1] and matrix[row - 1][col] <= matrix[row - 1][col - 1] then
-        -- TODO: continue fine-tuning edits
-        cur_edit = update_edits("deletion", cur_edit, row, edits)
-        cur_edit.b_start_pos = col + 1
-        row = row - 1
-        col = col + 1
-      elseif matrix[row][col - 1] <= matrix[row - 1][col] and matrix[row][col - 1] <= matrix[row - 1][col - 1] then
-        cur_edit = update_edits("insertion", cur_edit, col, edits)
-      else
-        cur_edit = update_edits("replacement", cur_edit, col, edits)
-        row = row - 1
-      end
-    else
-      row = row - 1
-    end
-    col = col - 1
-  end
-
-  if col > 0 then
-    table.insert(edits, 1, { type = "insertion", start_pos = 1, end_pos = col })
-  elseif row > 0 then
-    table.insert(edits, 1, { type = "deletion", start_pos = 1, end_pos = row, b_start_pos = col + 1 })
-  end
-  return edits, matrix
-end
-
--- Given a string a that has been transformed into string b using a set of editing
--- operations, returns b without any deletion operations applied to it.
-local undo_deletions = function(a, b, edits)
-  local function string_insert(str_1, str_2, pos)
-    return str_1:sub(1, pos - 1) .. str_2 .. str_1:sub(pos)
-  end
-  local updated_b = b
-  local offset = 0
-
-  for _, edit in ipairs(edits) do
-    if edit.type == "deletion" then
-      local deleted_chars = a:sub(edit.start_pos, edit.end_pos)
-      updated_b = string_insert(updated_b, deleted_chars, edit.b_start_pos + offset)
-      offset = offset + (edit.end_pos - edit.start_pos) + 1
-    end
-  end
-  return updated_b
-end
-
--- Returns the 0-indexed line and column numbers of the idx-th character of s in s.
--- A new line begins when a newline character is encountered.
-local idx_to_text_pos = function(s, idx)
-  local line = 0
-  local cur_idx = 1
-  for i = 2, idx do
-    if s:sub(i - 1, i - 1) == "\n" then
-      line = line + 1
-      -- Line begins at the current character
-      cur_idx = i
-    end
-  end
-  return line, idx - cur_idx
-end
-
-local get_multiline_highlights = function(a, b, edits)
-  -- TODO: only use 1-based indices
-  b = undo_deletions(a, b, edits)
-  local hls = {}
-  for _, edit in ipairs(edits) do
-    local start_line, start_col = idx_to_text_pos(b, edit.start_pos)
-    -- Do not create a highlight for a single newline character at the end of a line,
-    -- instead jump to the next line
-    if b:sub(edit.start_pos, edit.start_pos) == "\n" then
-      start_line = start_line + 1
-      start_col = 0
-    end
-    if not hls[start_line] then
-      hls[start_line] = {}
-    end
-    local end_line, end_col = idx_to_text_pos(b, edit.end_pos)
-
-    if start_line == end_line then
-      table.insert(hls[start_line], { start_col = start_col, end_col = end_col + 1 })
-    else
-      -- Highlight to the end of the first line
-      table.insert(hls[start_line], { start_col = start_col, end_col = -1 })
-      -- Highlight all lines inbetween
-      for line = start_line + 1, end_line - 1 do
-        if not hls[line] then
-          hls[line] = {}
-        end
-        table.insert(hls[line], { start_col = 0, end_col = -1 })
-      end
-      if not hls[end_line] then
-        hls[end_line] = {}
-      end
-      -- Highlight from the start of the last line
-      table.insert(hls[end_line], { start_col = 0, end_col = end_col + 1 })
-    end
-  end
-  return hls
-end
-
 local function preview_across_lines(cached_lines, updated_lines, set_lines, apply_highlight_cb)
-  local a, b, skipped_lines_count = strip_common_linewise(cached_lines, updated_lines)
+  local a, b, skipped_lines_count = M.utils.strip_common_linewise(cached_lines, updated_lines)
   a = table.concat(a, "\n")
   b = table.concat(b, "\n")
-  local edits = get_levenshtein_edits(a, b)
+  local edits = M.provider.get_edits(a, b)
 
   -- vim.v.errmsg = "Assert failed" .. (#vim.split(undo_deletions(a, b, edits), "\n") == #updated_lines - skipped_lines_count) and "true" or "")
   -- Undo deletion operations in all lines after the skipped ones
-  for line_nr, line in ipairs(vim.split(undo_deletions(a, b, edits), "\n")) do
+  for line_nr, line in ipairs(vim.split(M.utils.undo_deletions(a, b, edits), "\n")) do
     updated_lines[skipped_lines_count + line_nr] = line
   end
   set_lines(updated_lines)
 
-  for line_nr, hls_per_line in pairs(get_multiline_highlights(a, b, edits)) do
+  for line_nr, hls_per_line in pairs(M.utils.get_multiline_highlights(a, b, edits)) do
     for _, hl in ipairs(hls_per_line) do
       hl.line = line_nr
       apply_highlight_cb(hl, skipped_lines_count)
@@ -267,14 +43,15 @@ local function preview_per_line(cached_lines, updated_lines, hl_groups, set_line
   end
 
   for line_nr = 1, #updated_lines do
-    local a, b, skipped_columns_start, skipped_columns_end = strip_common(cached_lines[line_nr], updated_lines[line_nr])
-    local edits = get_levenshtein_edits(a, b)
+    local a, b, skipped_columns_start, skipped_columns_end =
+      M.utils.strip_common(cached_lines[line_nr], updated_lines[line_nr])
+    local edits = M.provider.get_edits(a, b)
 
     if not keep_deletions then
       local line = cached_lines[line_nr]
       -- Add back the deleted substrings
       local suffix = skipped_columns_end > 0 and line:sub(#line - skipped_columns_end + 1) or ""
-      set_line(line_nr, line:sub(1, skipped_columns_start) .. undo_deletions(a, b, edits) .. suffix)
+      set_line(line_nr, line:sub(1, skipped_columns_start) .. M.utils.undo_deletions(a, b, edits) .. suffix)
     end
 
     for _, edit in ipairs(edits) do
@@ -297,13 +74,6 @@ local function preview_per_line(cached_lines, updated_lines, hl_groups, set_line
 end
 
 -- Expose functions to tests
-M._strip_common = strip_common
-M._strip_common_linewise = strip_common_linewise
-M._get_levenshtein_edits = get_levenshtein_edits
-M._undo_deletions = undo_deletions
-M._idx_to_text_pos = idx_to_text_pos
-M._get_multiline_highlights = get_multiline_highlights
-M._preview_across_lines = preview_across_lines
 M._preview_per_line = preview_per_line
 
 local apply_highlight = function(hl, line, bufnr, preview_ns)
@@ -447,7 +217,7 @@ local validate_config = function(config)
     defaults = { defaults, "table", true },
     commands = { config.commands, "table" },
   }
-  local possible_opts = { "enable_highlighting", "hl_groups", "max_highlights", "max_line_highlights" }
+  local possible_opts = { "enable_highlighting", "hl_groups" }
   for _, command in pairs(config.commands) do
     for _, opt in ipairs(possible_opts) do
       if command[opt] == nil and defaults and defaults[opt] ~= nil then
@@ -461,8 +231,6 @@ local validate_config = function(config)
       args = { command.args, "string", true },
       ["command.enable_highlighting"] = { command.enable_highlighting, "boolean", true },
       ["command.hl_groups"] = { command.hl_groups, "table", true },
-      ["command.max_highlights"] = { command.max_highlights, "number", true },
-      ["command.max_line_highlights"] = { command.max_line_highlights, { "table", "function" }, true },
     }
   end
 end
@@ -489,6 +257,8 @@ M.setup = function(user_config)
       restore_buffer_state()
     end),
   })
+  M.utils = require("live_command.edit_utils")
+  M.provider = require("live_command.levenshtein_edits_provider")
 end
 
 return M
