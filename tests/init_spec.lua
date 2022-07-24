@@ -17,8 +17,8 @@ describe("Preview", function()
         cached_lines,
         updated_lines,
         { insertion = "I", replacement = "R", deletion = "D" },
-        set_line,
         function() end,
+        set_line,
         apply_highlight
       )
       assert.stub(set_line).was_called_with(1, "LRne 1")
@@ -73,8 +73,8 @@ describe("Preview", function()
         cached_lines,
         updated_lines,
         { insertion = "I", replacement = "R", deletion = nil },
-        set_line,
         set_lines,
+        set_line,
         apply_highlight
       )
       assert.stub(set_line).was_not_called_with("LRne 1")
@@ -97,10 +97,45 @@ describe("Preview", function()
     end)
   end)
 
-  it("across lines", function()
-    local updated_lines = {
-      "Line 1",
+  it("across lines works", function()
+    local set_lines = mock(function(lines) end)
+    local apply_highlight = mock(function(hl)
+      -- vim.pretty_print(hl)
+    end)
+
+    local cached_lines = {
+      "Identical",
+      "Line",
       "Line 2",
+    }
+    local updated_lines = {
+      "Identical",
+      -- One insertion and one deletion
+      "I Line",
+      "Line",
+    }
+
+    live_command._preview_across_lines(
+      cached_lines,
+      updated_lines,
+      { insertion = "I", replacement = "R", deletion = "D" },
+      set_lines,
+      apply_highlight
+    )
+    assert.stub(set_lines).was_called_with { "Identical", "I Line", "Line 2" }
+
+    assert.stub(apply_highlight).was_called_with {
+      line = 2,
+      start_col = 1,
+      end_col = 2,
+      hl_group = "I",
+    }
+
+    assert.stub(apply_highlight).was_called_with {
+      line = 3,
+      start_col = 5,
+      end_col = 6,
+      hl_group = "D",
     }
   end)
 end)

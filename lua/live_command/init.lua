@@ -15,28 +15,35 @@ M.defaults = {
 local scratch_buf, cached_lines, exit_early
 local prev_cursorline, prev_lazyredraw
 
-local function preview_across_lines(cached_lines, updated_lines, set_lines, apply_highlight_cb)
+local function preview_across_lines(cached_lines, updated_lines, hl_groups, set_lines, apply_highlight_cb)
+  local keep_deletions = hl_groups["deletion"] == nil
+  if keep_deletions then
+    set_lines(updated_lines)
+  end
+
   local a, b, skipped_lines_count = M.utils.strip_common_linewise(cached_lines, updated_lines)
   a = table.concat(a, "\n")
   b = table.concat(b, "\n")
   local edits = M.provider.get_edits(a, b)
 
-  -- vim.v.errmsg = "Assert failed" .. (#vim.split(undo_deletions(a, b, edits), "\n") == #updated_lines - skipped_lines_count) and "true" or "")
-  -- Undo deletion operations in all lines after the skipped ones
-  for line_nr, line in ipairs(vim.split(M.utils.undo_deletions(a, b, edits), "\n")) do
-    updated_lines[skipped_lines_count + line_nr] = line
+  if not keep_deletions then
+    -- Undo deletion operations in all lines after the skipped ones
+    b = M.utils.undo_deletions(a, b, edits)
+    for line_nr, line in ipairs(vim.split(b, "\n")) do
+      updated_lines[skipped_lines_count + line_nr] = line
+    end
+    set_lines(updated_lines)
   end
-  set_lines(updated_lines)
 
-  for line_nr, hls_per_line in pairs(M.utils.get_multiline_highlights(a, b, edits)) do
+  for line_nr, hls_per_line in pairs(M.utils.get_multiline_highlights(a, b, edits, hl_groups)) do
     for _, hl in ipairs(hls_per_line) do
-      hl.line = line_nr
-      apply_highlight_cb(hl, skipped_lines_count)
+      hl.line = line_nr + skipped_lines_count
+      apply_highlight_cb(hl)
     end
   end
 end
 
-local function preview_per_line(cached_lines, updated_lines, hl_groups, set_line, set_lines, apply_highlight_cb)
+local function preview_per_line(cached_lines, updated_lines, hl_groups, set_lines, set_line, apply_highlight_cb)
   local keep_deletions = hl_groups["deletion"] == nil
   if keep_deletions then
     set_lines(updated_lines)
@@ -75,6 +82,7 @@ end
 
 -- Expose functions to tests
 M._preview_per_line = preview_per_line
+M._preview_across_lines = preview_across_lines
 
 local apply_highlight = function(hl, line, bufnr, preview_ns)
   vim.api.nvim_buf_add_highlight(
@@ -109,6 +117,7 @@ local function command_preview(opts, preview_ns, preview_buf)
     prev_lazyredraw = vim.o.lazyredraw
     -- TODO: fix cursorline restoration
     prev_cursorline = vim.wo.cursorline
+    vim.v.errmsg = prev_cursorline and "true" or "false"
     vim.o.lazyredraw = true
     vim.wo.cursorline = false
     scratch_buf = vim.api.nvim_create_buf(true, true)
@@ -133,31 +142,25 @@ local function command_preview(opts, preview_ns, preview_buf)
   local updated_lines = vim.api.nvim_buf_get_lines(scratch_buf, 0, -1, false) or {}
   vim.api.nvim_set_current_buf(bufnr)
 
-  vim.v.errmsg = command.enable_highlighting and "true" or "false"
   if not command.enable_highlighting then
     vim.api.nvim_buf_set_lines(bufnr, range[1], range[2], false, updated_lines)
     return 2
   end
 
   local set_lines = function(lines)
-    vim.v.errmsg = vim.inspect(lines)
-    -- Update the original buffer
-    -- vim.api.nvim_buf_set_lines(bufnr, range[1], range[2], false, lines)
+    vim.api.nvim_buf_set_lines(bufnr, range[1], range[2], false, lines)
   end
 
   -- New lines were inserted or lines were deleted.
   -- In this case, we need to compute the distance across all lines.
   if #updated_lines ~= #cached_lines then
-    preview_across_lines(cached_lines, updated_lines, set_lines, function(hl, skipped_lines_count)
-      hl.hl_group = command.hl_groups[hl.type]
-      apply_highlight(hl, hl.line, range[1] + skipped_lines_count, 0, bufnr, preview_ns)
+    preview_across_lines(cached_lines, updated_lines, set_lines, function(hl)
+      apply_highlight(hl, hl.line - 1, range[1], 0, bufnr, preview_ns)
     end)
   else
     -- In the other case, it is more efficient to compute the distance per line
-    preview_per_line(cached_lines, updated_lines, command.hl_groups, function(line_nr, line)
+    preview_per_line(cached_lines, updated_lines, command.hl_groups, set_lines, function(line_nr, line)
       vim.api.nvim_buf_set_lines(bufnr, line_nr - 1 + range[1], line_nr + range[1], false, { line })
-    end, function(lines)
-      vim.api.nvim_buf_set_lines(bufnr, range[1], range[2], false, lines)
     end, function(hl)
       hl.line = hl.line + range[1]
       apply_highlight(hl, hl.line - 1, bufnr, preview_ns)
@@ -182,7 +185,7 @@ local function execute_command(command)
     vim.notify(
       "[command-preview] An error occurred in the preview function. Please report this error here: https://github.com/smjonas/command-preview.nvim/issues:\n"
         .. vim.v.errmsg,
-      vim.lsp.log_levels.ERROR
+      vim.log.levels.ERROR
     )
   end
   if not exit_early then
@@ -239,7 +242,7 @@ M.setup = function(user_config)
   if vim.fn.has("nvim-0.8.0") ~= 1 then
     vim.notify(
       "[command-preview] This plugin requires Neovim nightly (0.8). Please upgrade your Neovim version.",
-      vim.lsp.log_levels.ERROR
+      vim.log.levels.ERROR
     )
     return
   end

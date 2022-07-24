@@ -95,10 +95,10 @@ end
 -- Returns the 0-indexed line and column numbers of the idx-th character of s in s.
 -- A new line begins when a newline character is encountered.
 M.idx_to_text_pos = function(s, idx)
-  local line = 0
-  local cur_idx = 1
-  for i = 2, idx do
-    if s:sub(i - 1, i - 1) == "\n" then
+  local line = 1
+  local cur_idx = 0
+  for i = 1, idx - 1 do
+    if s:sub(i, i) == "\n" then
       line = line + 1
       -- Line begins at the current character
       cur_idx = i
@@ -110,40 +110,47 @@ end
 -- Given strings a and b and a table of edit operations that turn
 -- a into b, returns a list of highlights that correspond to these
 -- edit operations (deletions are undone).
-M.get_multiline_highlights = function(a, b, edits)
-  -- TODO: only use 1-based indices
+M.get_multiline_highlights = function(a, b, edits, hl_groups)
   b = M.undo_deletions(a, b, edits)
   local hls = {}
   for _, edit in ipairs(edits) do
-    local start_line, start_col = M.idx_to_text_pos(b, edit.start_pos)
-    -- Do not create a highlight for a single newline character at the end of a line,
-    -- instead jump to the next line
-    if b:sub(edit.start_pos, edit.start_pos) == "\n" then
-      start_line = start_line + 1
-      start_col = 0
-    end
-    if not hls[start_line] then
-      hls[start_line] = {}
-    end
-    local end_line, end_col = M.idx_to_text_pos(b, edit.end_pos)
+    if hl_groups[edit.type] ~= nil then
+      local start_pos = edit.b_start_pos or edit.start_pos
+      local start_line, start_col = M.idx_to_text_pos(b, start_pos)
+      -- Do not create a highlight for a single newline character at the end of a line,
+      -- instead jump to the next line
+      if b:sub(start_pos, start_pos) == "\n" then
+        start_line = start_line + 1
+        start_col = 1
+      end
+      if not hls[start_line] then
+        hls[start_line] = {}
+      end
+      local end_pos = edit.b_start_pos and (edit.b_start_pos + (edit.end_pos - edit.start_pos)) or edit.end_pos
+      local end_line, end_col = M.idx_to_text_pos(b, end_pos)
 
-    if start_line == end_line then
-      table.insert(hls[start_line], { start_col = start_col, end_col = end_col + 1 })
-    else
-      -- Highlight to the end of the first line
-      table.insert(hls[start_line], { start_col = start_col, end_col = -1 })
-      -- Highlight all lines inbetween
-      for line = start_line + 1, end_line - 1 do
-        if not hls[line] then
-          hls[line] = {}
+      local hl_group = hl_groups[edit.type]
+      if start_line == end_line then
+        print(start_col)
+        table.insert(hls[start_line], { start_col = start_col, end_col = end_col, hl_group = hl_group })
+      else
+        print("HERE line", start_line, end_line)
+        print("Then", start_pos, end_pos)
+        -- Highlight to the end of the first line
+        table.insert(hls[start_line], { start_col = start_col, end_col = -1, hl_group = hl_group })
+        -- Highlight all lines inbetween
+        for line = start_line + 1, end_line - 1 do
+          if not hls[line] then
+            hls[line] = {}
+          end
+          table.insert(hls[line], { start_col = 1, end_col = -1, hl_group = hl_group })
         end
-        table.insert(hls[line], { start_col = 0, end_col = -1 })
+        if not hls[end_line] then
+          hls[end_line] = {}
+        end
+        -- Highlight from the start of the last line
+        table.insert(hls[end_line], { start_col = 1, end_col = end_col, hl_group = hl_group })
       end
-      if not hls[end_line] then
-        hls[end_line] = {}
-      end
-      -- Highlight from the start of the last line
-      table.insert(hls[end_line], { start_col = 0, end_col = end_col + 1 })
     end
   end
   return hls

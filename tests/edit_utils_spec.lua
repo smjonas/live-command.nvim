@@ -83,54 +83,76 @@ end)
 describe("Index to text position", function()
   it("works across multiple lines", function()
     local text = "line1\nline2"
-    -- Input index is 1-based, output line and column are 0-indexed
+    -- 1-indexed
     local line, col = utils.idx_to_text_pos(text, 7)
-    assert.are_same(1, line)
-    -- Inclusive
-    assert.are_same(0, col)
+    assert.are_same(2, line)
+    -- 1-indexed, inclusive
+    assert.are_same(1, col)
     -- Sanity check
-    assert.are_same("l", vim.split(text, "\n")[line + 1]:sub(col + 1, col + 1))
+    assert.are_same("l", vim.split(text, "\n")[line]:sub(col, col))
   end)
 
   it("works for single line", function()
     local text = "line1"
-    -- Input index is 1-based, output line and column are 0-indexed
+    -- 1-indexed
     local line, col = utils.idx_to_text_pos(text, 1)
-    assert.are_same(0, line)
-    assert.are_same(0, col)
+    -- 1-indexed, inclusive
+    assert.are_same(1, line)
+    assert.are_same(1, col)
   end)
 
   it("works for newline at end of line", function()
     local text = "line1\n"
-    -- Input index is 1-based, output line and column are 0-indexed
+    -- 1-indexed
     local line, col = utils.idx_to_text_pos(text, 6)
-    assert.are_same(0, line)
-    assert.are_same(5, col)
+    -- 1-indexed, inclusive
+    assert.are_same(1, line)
+    assert.are_same(6, col)
   end)
 end)
 
 describe("Get multiline highlights from edits", function()
-  it("works for multi-line insertion", function()
+  -- These must not be nil or else some highlights would be skipped
+  local dummy_hl_groups = { insertion = "I", replacement = "R", deletion = "D" }
+
+  it("works for insertion across multiple lines", function()
     local a = "line_1\naaline_4\n"
     local b = "line_1\naaNEW\nNEW\nXXline_4\n"
     -- 1-indexed, inclusive; inserted "NEW\nNEW\nXX"
     local edits = { { type = "insertion", start_pos = 10, end_pos = 19 } }
-    local actual = utils.get_multiline_highlights(a, b, edits)
+    local actual = utils.get_multiline_highlights(a, b, edits, dummy_hl_groups)
     assert.are_same({
-      -- 0-indexed; end_col is exclusive
-      [1] = { { start_col = 2, end_col = -1 } },
-      [2] = { { start_col = 0, end_col = -1 } },
-      [3] = { { start_col = 0, end_col = 2 } },
+      -- 1-indexed, inclusive
+      [2] = { { hl_group = "I", start_col = 3, end_col = -1 } },
+      [3] = { { hl_group = "I", start_col = 1, end_col = -1 } },
+      [4] = { { hl_group = "I", start_col = 1, end_col = 2 } },
     }, actual)
   end)
 
   it("returns positions on a single line when inserting at the end of the line", function()
     local a, b = "abc", "abcNEW"
     local edits = { { type = "insertion", start_pos = 4, end_pos = 6 } }
-    local actual = utils.get_multiline_highlights(a, b, edits)
+    local actual = utils.get_multiline_highlights(a, b, edits, dummy_hl_groups)
     assert.are_same({
-      -- 0-indexed; end_col is exclusive
-      [0] = { { start_col = 3, end_col = 6 } },
+      -- 1-indexed, inclusive
+      [1] = { { hl_group = "I", start_col = 4, end_col = 6 } },
+    }, actual)
+  end)
+
+  it("works for deletion after insertion on single line", function()
+    local a = "LiXX"
+    local b = "ILi"
+    local edits = {
+      { type = "insertion", start_pos = 1, end_pos = 1 },
+      { type = "deletion", start_pos = 3, end_pos = 4, b_start_pos = 4 },
+    }
+
+    local actual = utils.get_multiline_highlights(a, b, edits, dummy_hl_groups)
+    assert.are_same ({
+      [1] = {
+        { hl_group = "I", start_col = 1, end_col = 1 },
+        { hl_group = "D", start_col = 4, end_col = 5 },
+      },
     }, actual)
   end)
 
@@ -138,19 +160,19 @@ describe("Get multiline highlights from edits", function()
     local a = "line1X\nline2\nline3\nline4"
     local b = "line1\nline3"
     local edits = {
-      -- `X\nline2` and '\nline4' were deleted; not optimal but ok
+      -- `X\nline2` and '\nline4' were deleted (not optimal but ok)
       { type = "deletion", start_pos = 6, end_pos = 12, b_start_pos = 6 },
       { type = "deletion", start_pos = 19, end_pos = 24, b_start_pos = 12 },
     }
 
-    local actual = utils.get_multiline_highlights(a, b, edits)
+    local actual = utils.get_multiline_highlights(a, b, edits, dummy_hl_groups)
     assert.are_same({
-      -- 0-indexed; end_col is exclusive; columns are relative to b
-      [0] = { { start_col = 5, end_col = -1 } }, -- deletion of X
+      -- 1-indexed, inclusive; columns are relative to b
+      [1] = { { hl_group = "D", start_col = 6, end_col = -1 } }, -- deletion of X
       -- deletion of '\nline2'; end_col != -1 here since this a continuation of the first highlight
-      [1] = { { start_col = 0, end_col = 5 } },
-      -- Line with index 2 should be skipped as there is only a single newline character
-      [3] = { { start_col = 0, end_col = 5 } }, -- deletion of '\nline4'
+      [2] = { { hl_group = "D", start_col = 1, end_col = 5 } },
+      -- Line 3 should be skipped as there is only a single newline character
+      [4] = { { hl_group = "D", start_col = 1, end_col = 5 } }, -- deletion of '\nline4'
     }, actual)
   end)
 end)
