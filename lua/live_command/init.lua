@@ -25,10 +25,10 @@ local function preview_across_lines(cached_lines, updated_lines, hl_groups, set_
   a = table.concat(a, "\n")
   b = table.concat(b, "\n")
   local edits = M.provider.get_edits(a, b)
+  b = M.utils.undo_deletions(a, b, edits)
 
   if not keep_deletions then
     -- Undo deletion operations in all lines after the skipped ones
-    b = M.utils.undo_deletions(a, b, edits)
     for line_nr, line in ipairs(vim.split(b, "\n")) do
       updated_lines[skipped_lines_count + line_nr] = line
     end
@@ -93,7 +93,6 @@ local apply_highlight = function(hl, line, bufnr, preview_ns)
     line,
     hl.start_col - 1,
     hl.end_col
-    -- TODO: document that everything is 1-based
   )
 end
 

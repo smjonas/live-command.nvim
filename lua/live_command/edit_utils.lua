@@ -86,6 +86,8 @@ M.undo_deletions = function(a, b, edits)
     if edit.type == "deletion" then
       local deleted_chars = a:sub(edit.start_pos, edit.end_pos)
       updated_b = string_insert(updated_b, deleted_chars, edit.b_start_pos + offset)
+      -- Increase b_start_pos to account for new b
+      edit.b_start_pos = edit.b_start_pos + offset
       offset = offset + (edit.end_pos - edit.start_pos) + 1
     end
   end
@@ -108,10 +110,9 @@ M.idx_to_text_pos = function(s, idx)
 end
 
 -- Given strings a and b and a table of edit operations that turn
--- a into b, returns a list of highlights that correspond to these
--- edit operations (deletions are undone).
+-- a into b (after deletions have been undone in b), returns a list
+-- of highlights that correspond to these edit operations.
 M.get_multiline_highlights = function(a, b, edits, hl_groups)
-  b = M.undo_deletions(a, b, edits)
   local hls = {}
   for _, edit in ipairs(edits) do
     if hl_groups[edit.type] ~= nil then
@@ -131,11 +132,8 @@ M.get_multiline_highlights = function(a, b, edits, hl_groups)
 
       local hl_group = hl_groups[edit.type]
       if start_line == end_line then
-        print(start_col)
         table.insert(hls[start_line], { start_col = start_col, end_col = end_col, hl_group = hl_group })
       else
-        print("HERE line", start_line, end_line)
-        print("Then", start_pos, end_pos)
         -- Highlight to the end of the first line
         table.insert(hls[start_line], { start_col = start_col, end_col = -1, hl_group = hl_group })
         -- Highlight all lines inbetween

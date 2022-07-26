@@ -37,7 +37,7 @@ describe("Stripping common prefix and suffix", function()
   end)
 end)
 
-describe("Undo deletions", function()
+describe("#undo Undo deletions", function()
   it("works for simple case", function()
     local a = "acx"
     local b = "Abbc"
@@ -63,6 +63,15 @@ describe("Undo deletions", function()
 
     local updated_b = utils.undo_deletions(a, b, edits)
     assert.are_same(a, updated_b)
+
+    assert.are_same({
+      { type = "deletion", start_pos = 6, end_pos = 12, b_start_pos = 6 },
+      -- b_start_pos should have been increased to account for the updated b
+      -- 19 is now the position where the second highlight will start:
+      -- ('line1X\nline2\nline3\nline4')
+      --                        ^
+      { type = "deletion", start_pos = 19, end_pos = 24, b_start_pos = 19 },
+    }, edits)
   end)
 
   it("works for mixed insertion, replacement and deletion", function()
@@ -139,7 +148,7 @@ describe("Get multiline highlights from edits", function()
     }, actual)
   end)
 
-  it("works for deletion after insertion on single line", function()
+  it("#lel works for deletion after insertion on single line", function()
     local a = "LiXX"
     local b = "ILi"
     local edits = {
@@ -148,7 +157,7 @@ describe("Get multiline highlights from edits", function()
     }
 
     local actual = utils.get_multiline_highlights(a, b, edits, dummy_hl_groups)
-    assert.are_same ({
+    assert.are_same({
       [1] = {
         { hl_group = "I", start_col = 1, end_col = 1 },
         { hl_group = "D", start_col = 4, end_col = 5 },
@@ -165,6 +174,7 @@ describe("Get multiline highlights from edits", function()
       { type = "deletion", start_pos = 19, end_pos = 24, b_start_pos = 12 },
     }
 
+    b = utils.undo_deletions(a, b, edits)
     local actual = utils.get_multiline_highlights(a, b, edits, dummy_hl_groups)
     assert.are_same({
       -- 1-indexed, inclusive; columns are relative to b
