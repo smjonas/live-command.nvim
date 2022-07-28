@@ -129,7 +129,7 @@ describe("Get multiline highlights from edits", function()
     local b = "line_1\naaNEW\nNEW\nXXline_4\n"
     -- 1-indexed, inclusive; inserted "NEW\nNEW\nXX"
     local edits = { { type = "insertion", start_pos = 10, end_pos = 19 } }
-    local actual = utils.get_multiline_highlights(a, b, edits, dummy_hl_groups)
+    local actual = utils.get_multiline_highlights(b, edits, dummy_hl_groups)
     assert.are_same({
       -- 1-indexed, inclusive
       [2] = { { hl_group = "I", start_col = 3, end_col = -1 } },
@@ -141,7 +141,7 @@ describe("Get multiline highlights from edits", function()
   it("returns positions on a single line when inserting at the end of the line", function()
     local a, b = "abc", "abcNEW"
     local edits = { { type = "insertion", start_pos = 4, end_pos = 6 } }
-    local actual = utils.get_multiline_highlights(a, b, edits, dummy_hl_groups)
+    local actual = utils.get_multiline_highlights(b, edits, dummy_hl_groups)
     assert.are_same({
       -- 1-indexed, inclusive
       [1] = { { hl_group = "I", start_col = 4, end_col = 6 } },
@@ -156,7 +156,7 @@ describe("Get multiline highlights from edits", function()
       { type = "deletion", start_pos = 3, end_pos = 4, b_start_pos = 4 },
     }
 
-    local actual = utils.get_multiline_highlights(a, b, edits, dummy_hl_groups)
+    local actual = utils.get_multiline_highlights(b, edits, dummy_hl_groups)
     assert.are_same({
       [1] = {
         { hl_group = "I", start_col = 1, end_col = 1 },
@@ -175,7 +175,7 @@ describe("Get multiline highlights from edits", function()
     }
 
     b = utils.undo_deletions(a, b, edits)
-    local actual = utils.get_multiline_highlights(a, b, edits, dummy_hl_groups)
+    local actual = utils.get_multiline_highlights(b, edits, dummy_hl_groups)
     assert.are_same({
       -- 1-indexed, inclusive; columns are relative to b
       [1] = { { hl_group = "D", start_col = 6, end_col = -1 } }, -- deletion of X

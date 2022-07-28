@@ -12,16 +12,16 @@ M.defaults = {
   },
 }
 
-local scratch_buf, cached_lines, exit_early
+local scratch_buf, cached_lines
 local prev_cursorline, prev_lazyredraw
 
-local function preview_across_lines(cached_lines, updated_lines, hl_groups, set_lines, apply_highlight_cb)
+local function preview_across_lines(cached_lns, updated_lines, hl_groups, set_lines, apply_highlight_cb)
   local keep_deletions = hl_groups["deletion"] == nil
   if keep_deletions then
     set_lines(updated_lines)
   end
 
-  local a, b, skipped_lines_count = M.utils.strip_common_linewise(cached_lines, updated_lines)
+  local a, b, skipped_lines_count = M.utils.strip_common_linewise(cached_lns, updated_lines)
   a = table.concat(a, "\n")
   b = table.concat(b, "\n")
   local edits = M.provider.get_edits(a, b)
@@ -35,7 +35,7 @@ local function preview_across_lines(cached_lines, updated_lines, hl_groups, set_
     set_lines(updated_lines)
   end
 
-  for line_nr, hls_per_line in pairs(M.utils.get_multiline_highlights(a, b, edits, hl_groups)) do
+  for line_nr, hls_per_line in pairs(M.utils.get_multiline_highlights(b, edits, hl_groups)) do
     for _, hl in ipairs(hls_per_line) do
       hl.line = line_nr + skipped_lines_count
       apply_highlight_cb(hl)
@@ -43,19 +43,19 @@ local function preview_across_lines(cached_lines, updated_lines, hl_groups, set_
   end
 end
 
-local function preview_per_line(cached_lines, updated_lines, hl_groups, set_lines, set_line, apply_highlight_cb)
+local function preview_per_line(cached_lns, updated_lns, hl_groups, set_lines, set_line, apply_highlight_cb)
   local keep_deletions = hl_groups["deletion"] == nil
   if keep_deletions then
-    set_lines(updated_lines)
+    set_lines(updated_lns)
   end
 
-  for line_nr = 1, #updated_lines do
+  for line_nr = 1, #updated_lns do
     local a, b, skipped_columns_start, skipped_columns_end =
-      M.utils.strip_common(cached_lines[line_nr], updated_lines[line_nr])
+      M.utils.strip_common(cached_lns[line_nr], updated_lns[line_nr])
     local edits = M.provider.get_edits(a, b)
 
     if not keep_deletions then
-      local line = cached_lines[line_nr]
+      local line = cached_lns[line_nr]
       -- Add back the deleted substrings
       local suffix = skipped_columns_end > 0 and line:sub(#line - skipped_columns_end + 1) or ""
       set_line(line_nr, line:sub(1, skipped_columns_start) .. M.utils.undo_deletions(a, b, edits) .. suffix)
@@ -84,21 +84,12 @@ end
 M._preview_per_line = preview_per_line
 M._preview_across_lines = preview_across_lines
 
-local apply_highlight = function(hl, line, bufnr, preview_ns)
-  vim.api.nvim_buf_add_highlight(
-    bufnr,
-    preview_ns,
-    hl.hl_group,
-    -- TODO: can't the line number change too?
-    line,
-    hl.start_col - 1,
-    hl.end_col
-  )
+local function apply_highlight(hl, line, bufnr, preview_ns)
+  vim.api.nvim_buf_add_highlight(bufnr, preview_ns, hl.hl_group, line, hl.start_col - 1, hl.end_col)
 end
 
 -- Called when the user is still typing the command or the command arguments
 local function command_preview(opts, preview_ns, preview_buf)
-  -- TODO: handle preview_buf
   vim.v.errmsg = ""
   local args = opts.command.args or opts.args
   if args:find("^%s*$") then
@@ -107,16 +98,11 @@ local function command_preview(opts, preview_ns, preview_buf)
 
   local bufnr = vim.api.nvim_get_current_buf()
   local range = { opts.line1 - 1, opts.line2 }
-  if not range[1] then
-    vim.v.errmsg = "No line1 range provided"
-    return
-  end
 
   if not scratch_buf then
     prev_lazyredraw = vim.o.lazyredraw
     -- TODO: fix cursorline restoration
     prev_cursorline = vim.wo.cursorline
-    vim.v.errmsg = prev_cursorline and "true" or "false"
     vim.o.lazyredraw = true
     vim.wo.cursorline = false
     scratch_buf = vim.api.nvim_create_buf(true, true)
@@ -125,7 +111,8 @@ local function command_preview(opts, preview_ns, preview_buf)
   -- Clear the scratch buffer
   vim.api.nvim_buf_set_lines(scratch_buf, 0, -1, false, cached_lines)
 
-  -- Ignore any errors that occur while running the command
+  -- Ignore any errors that occur while running the command.
+  -- This reduces noise when a plugin modifies vim.v.errmsg (whether accidentally or not).
   local prev_errmsg = vim.v.errmsg
 
   local command = opts.command
@@ -138,23 +125,31 @@ local function command_preview(opts, preview_ns, preview_buf)
   }, {})
   vim.v.errmsg = prev_errmsg
 
-  local updated_lines = vim.api.nvim_buf_get_lines(scratch_buf, 0, -1, false) or {}
+  local updated_lines = vim.api.nvim_buf_get_lines(scratch_buf, 0, -1, false)
   vim.api.nvim_set_current_buf(bufnr)
-
-  if not command.enable_highlighting then
-    vim.api.nvim_buf_set_lines(bufnr, range[1], range[2], false, updated_lines)
-    return 2
-  end
 
   local set_lines = function(lines)
     vim.api.nvim_buf_set_lines(bufnr, range[1], range[2], false, lines)
+    if preview_buf then
+      vim.api.nvim_buf_set_lines(preview_buf, range[1], range[2], false, lines)
+    end
+  end
+
+  if not range[1] or not command.enable_highlighting then
+    set_lines(updated_lines)
+    if not range[1] then
+      -- This should not happen
+      vim.v.errmsg = "No line1 range provided"
+    end
+    return 2
   end
 
   -- New lines were inserted or lines were deleted.
   -- In this case, we need to compute the distance across all lines.
   if #updated_lines ~= #cached_lines then
-    preview_across_lines(cached_lines, updated_lines, set_lines, function(hl)
-      apply_highlight(hl, hl.line - 1, range[1], 0, bufnr, preview_ns)
+    preview_across_lines(cached_lines, updated_lines, command.hl_groups, set_lines, function(hl)
+      hl.line = hl.line + range[1]
+      apply_highlight(hl, hl.line - 1, bufnr, preview_ns)
     end)
   else
     -- In the other case, it is more efficient to compute the distance per line
@@ -187,17 +182,13 @@ local function execute_command(command)
       vim.log.levels.ERROR
     )
   end
-  if not exit_early then
-    vim.cmd(command)
-    exit_early = false
-  end
+  vim.cmd(command)
   restore_buffer_state()
 end
 
 local create_user_commands = function(commands)
   for name, command in pairs(commands) do
     vim.api.nvim_create_user_command(name, function(opts)
-      -- TODO: correctly handle range
       local range = opts.range == 2 and ("%s,%s"):format(opts.line1, opts.line2)
         or opts.range == 1 and tostring(opts.line1)
         or ""

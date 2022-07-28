@@ -5,13 +5,11 @@
 View the effects of any command on your buffer contents live. Preview macros, the `:norm` command & more!
 
 > :warning: This plugin is still in development and breaking changes may occur without prior announcement.
-> I will also reserve the right to force-push to the main branch which may prevent you from being able to
-> pull the recent changes with your plugin manager.
 > Make sure to watch this project on GitHub to be notified when it's released!
 
 ## :sparkles: Goals and Features
 - Make it extremely simple to create previewable commands in Neovim
-- Smart highlighting based on the Levenshtein distance algorithm, heavily optimized for performance
+- Smart highlighting based on the Levenshtein distance algorithm
 - View individual insertions, replacements and deletions
 
 ## Requirements

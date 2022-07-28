@@ -112,7 +112,7 @@ end
 -- Given strings a and b and a table of edit operations that turn
 -- a into b (after deletions have been undone in b), returns a list
 -- of highlights that correspond to these edit operations.
-M.get_multiline_highlights = function(a, b, edits, hl_groups)
+M.get_multiline_highlights = function(b, edits, hl_groups)
   local hls = {}
   for _, edit in ipairs(edits) do
     if hl_groups[edit.type] ~= nil then
