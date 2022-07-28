@@ -101,10 +101,7 @@ local function command_preview(opts, preview_ns, preview_buf)
 
   if not scratch_buf then
     prev_lazyredraw = vim.o.lazyredraw
-    -- TODO: fix cursorline restoration
-    prev_cursorline = vim.wo.cursorline
     vim.o.lazyredraw = true
-    vim.wo.cursorline = false
     scratch_buf = vim.api.nvim_create_buf(true, true)
     cached_lines = vim.api.nvim_buf_get_lines(bufnr, range[1], range[2], false)
   end
@@ -166,7 +163,6 @@ end
 local function restore_buffer_state()
   if scratch_buf then
     vim.api.nvim_buf_delete(scratch_buf, {})
-    vim.wo.cursorline = prev_cursorline
     vim.o.lazyredraw = prev_lazyredraw
     scratch_buf = nil
   end

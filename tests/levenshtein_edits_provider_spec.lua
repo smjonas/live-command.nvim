@@ -78,4 +78,25 @@ describe("Levenshtein get_edits", function()
       { type = "deletion", start_pos = 4, end_pos = 4, b_start_pos = 5 },
     }, actual)
   end)
+
+  it("prioritizes consecutive edits of the same type (insertion)", function()
+    -- This used to return a replacement, insertion, replacement
+    local actual = provider.get_edits([['word']], [[new "word"]])
+    assert.are_same({
+      { type = "insertion", start_pos = 1, end_pos = 4 },
+      { type = "replacement", start_pos = 5, end_pos = 5 },
+      { type = "replacement", start_pos = 10, end_pos = 10 },
+    }, actual)
+  end)
+
+  it("prioritizes consecutive edits of the same type (deletion)", function()
+    -- This used to return a replacement, deletion, replacement
+    local actual = provider.get_edits([[this 'word']], [['word"]])
+    assert.are_same({
+      { type = "insertion", start_pos = 1, end_pos = 4 },
+      { type = "replacement", start_pos = 5, end_pos = 5 },
+      { type = "replacement", start_pos = 10, end_pos = 10 },
+    }, actual)
+  end)
+
 end)

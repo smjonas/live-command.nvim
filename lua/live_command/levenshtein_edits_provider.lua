@@ -51,19 +51,52 @@ M.get_edits = function(str_a, str_b)
   local edits = {}
   local cur_edit = {}
 
+  local function do_deletion()
+    cur_edit = update_edits("deletion", cur_edit, row, edits)
+    cur_edit.b_start_pos = col + 1
+    row = row - 1
+    col = col + 1
+  end
+
+  local function try_insertion()
+    local can_insert = matrix[row][col - 1] <= matrix[row - 1][col] and matrix[row][col - 1] <= matrix[row - 1][col - 1]
+    if can_insert then
+      cur_edit = update_edits("insertion", cur_edit, col, edits)
+    end
+    return can_insert
+  end
+
+  local function do_replacement()
+    cur_edit = update_edits("replacement", cur_edit, col, edits)
+    row = row - 1
+  end
+
   while row > 0 and col > 0 do
     if str_a:sub(row, row) ~= str_b:sub(col, col) then
-      if matrix[row - 1][col] <= matrix[row][col - 1] and matrix[row - 1][col] <= matrix[row - 1][col - 1] then
-        -- TODO: continue fine-tuning edits
-        cur_edit = update_edits("deletion", cur_edit, row, edits)
-        cur_edit.b_start_pos = col + 1
-        row = row - 1
-        col = col + 1
-      elseif matrix[row][col - 1] <= matrix[row - 1][col] and matrix[row][col - 1] <= matrix[row - 1][col - 1] then
-        cur_edit = update_edits("insertion", cur_edit, col, edits)
+      local can_delete = matrix[row - 1][col] <= matrix[row][col - 1]
+        and matrix[row - 1][col] <= matrix[row - 1][col - 1]
+
+      -- There was no previous edit
+      if not cur_edit.type then
+        if can_delete then
+          do_deletion()
+        elseif not try_insertion() then
+          do_replacement()
+        end
       else
-        cur_edit = update_edits("replacement", cur_edit, col, edits)
-        row = row - 1
+        -- Prioritize edits of the same type as the previous edit
+        if can_delete and cur_edit.type == "deletion" then
+          do_deletion()
+        else
+          -- Only do a replacement if moving left in the matrix (=> insertion) is the shortest path
+          if cur_edit.type == "insertion" or str_a:sub(row, row) == str_b:sub(col - 1, col - 1) then
+            if not try_insertion() then
+              do_replacement()
+            end
+          else
+            do_replacement()
+          end
+        end
       end
     else
       row = row - 1
