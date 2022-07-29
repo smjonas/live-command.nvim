@@ -50,6 +50,13 @@ describe("Undo deletions", function()
 
     local updated_b = utils.undo_deletions(a, b, edits)
     assert.are_same("Abbcx", updated_b)
+
+    assert.are_same({
+      { type = "replacement", start_pos = 1, end_pos = 1 },
+      { type = "insertion", start_pos = 2, end_pos = 3 },
+      -- start_pos and end_pos should now be relative to b
+      { type = "deletion", start_pos = 5, end_pos = 5 },
+    }, edits)
   end)
 
   it("works for more complex deletion case", function()
@@ -65,12 +72,12 @@ describe("Undo deletions", function()
     assert.are_same(a, updated_b)
 
     assert.are_same({
-      { type = "deletion", start_pos = 6, end_pos = 12, b_start_pos = 6 },
-      -- b_start_pos should have been increased to account for the updated b
+      { type = "deletion", start_pos = 6, end_pos = 12 },
+      -- start_pos should have been increased to account for the updated b
       -- 19 is now the position where the second highlight will start:
       -- ('line1X\nline2\nline3\nline4')
       --                        ^
-      { type = "deletion", start_pos = 19, end_pos = 24, b_start_pos = 19 },
+      { type = "deletion", start_pos = 19, end_pos = 24 },
     }, edits)
   end)
 
@@ -101,7 +108,8 @@ describe("Undo deletions", function()
     assert.are_same([[one "word"]], updated_b)
 
     assert.are_same({
-      { type = "deletion", start_pos = 1, end_pos = 4, b_start_pos = 1 },
+      -- b_start_pos should have been set to nil
+      { type = "deletion", start_pos = 1, end_pos = 4 },
       -- Positions should have been shifted
       { type = "replacement", start_pos = 5, end_pos = 5 },
       { type = "replacement", start_pos = 10, end_pos = 10 },
@@ -174,7 +182,7 @@ describe("Get multiline highlights from edits", function()
     local b = "ILi"
     local edits = {
       { type = "insertion", start_pos = 1, end_pos = 1 },
-      { type = "deletion", start_pos = 3, end_pos = 4, b_start_pos = 4 },
+      { type = "deletion", start_pos = 4, end_pos = 5 },
     }
 
     local actual = utils.get_multiline_highlights(b, edits, dummy_hl_groups)

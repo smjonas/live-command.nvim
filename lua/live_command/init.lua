@@ -13,7 +13,7 @@ M.defaults = {
 }
 
 local scratch_buf, cached_lines
-local prev_cursorline, prev_lazyredraw
+local prev_lazyredraw
 
 local function preview_across_lines(cached_lns, updated_lines, hl_groups, set_lines, apply_highlight_cb)
   local keep_deletions = hl_groups["deletion"] == nil

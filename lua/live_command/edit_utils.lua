@@ -75,6 +75,7 @@ end
 
 -- Given a string a that has been transformed into string b using a set of editing
 -- operations, returns b without any deletion operations applied to it.
+-- This will adjust positions of edits after a deletion is encountered.
 M.undo_deletions = function(a, b, edits)
   local function string_insert(str_1, str_2, pos)
     return str_1:sub(1, pos - 1) .. str_2 .. str_1:sub(pos)
@@ -86,10 +87,15 @@ M.undo_deletions = function(a, b, edits)
     if edit.type == "deletion" then
       local deleted_chars = a:sub(edit.start_pos, edit.end_pos)
       updated_b = string_insert(updated_b, deleted_chars, edit.b_start_pos + offset)
-      -- Increase start_pos to account for updated b
-      edit.b_start_pos = edit.b_start_pos + offset
-      offset = offset + (edit.end_pos - edit.start_pos) + 1
+      -- Increase positions to account for updated b
+      local length = edit.end_pos - edit.start_pos + 1
+      edit.start_pos = edit.b_start_pos + offset
+      edit.end_pos = edit.start_pos + length - 1
+      -- Not needed anymore
+      edit.b_start_pos = nil
+      offset = offset + length
     else
+      -- Shift all other edits
       edit.start_pos = edit.start_pos + offset
       edit.end_pos = edit.end_pos + offset
     end
@@ -119,19 +125,17 @@ M.get_multiline_highlights = function(b, edits, hl_groups)
   local hls = {}
   for _, edit in ipairs(edits) do
     if hl_groups[edit.type] ~= nil then
-      local start_pos = edit.b_start_pos or edit.start_pos
-      local start_line, start_col = M.idx_to_text_pos(b, start_pos)
+      local start_line, start_col = M.idx_to_text_pos(b, edit.start_pos)
       -- Do not create a highlight for a single newline character at the end of a line,
       -- instead jump to the next line
-      if b:sub(start_pos, start_pos) == "\n" then
+      if b:sub(edit.start_pos, edit.start_pos) == "\n" then
         start_line = start_line + 1
         start_col = 1
       end
       if not hls[start_line] then
         hls[start_line] = {}
       end
-      local end_pos = edit.b_start_pos and (edit.b_start_pos + (edit.end_pos - edit.start_pos)) or edit.end_pos
-      local end_line, end_col = M.idx_to_text_pos(b, end_pos)
+      local end_line, end_col = M.idx_to_text_pos(b, edit.end_pos)
 
       local hl_group = hl_groups[edit.type]
       if start_line == end_line then
