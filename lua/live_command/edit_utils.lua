@@ -86,9 +86,12 @@ M.undo_deletions = function(a, b, edits)
     if edit.type == "deletion" then
       local deleted_chars = a:sub(edit.start_pos, edit.end_pos)
       updated_b = string_insert(updated_b, deleted_chars, edit.b_start_pos + offset)
-      -- Increase b_start_pos to account for new b
+      -- Increase start_pos to account for updated b
       edit.b_start_pos = edit.b_start_pos + offset
       offset = offset + (edit.end_pos - edit.start_pos) + 1
+    else
+      edit.start_pos = edit.start_pos + offset
+      edit.end_pos = edit.end_pos + offset
     end
   end
   return updated_b

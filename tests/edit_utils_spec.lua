@@ -37,7 +37,7 @@ describe("Stripping common prefix and suffix", function()
   end)
 end)
 
-describe("#undo Undo deletions", function()
+describe("Undo deletions", function()
   it("works for simple case", function()
     local a = "acx"
     local b = "Abbc"
@@ -87,6 +87,26 @@ describe("#undo Undo deletions", function()
     local updated_b = utils.undo_deletions(a, b, edits)
     assert.are_same("IworRs", updated_b)
   end)
+
+  it("works when deletion edit is followed by other edits", function()
+    local a = "one 'word'"
+    local b = [["word"]]
+    local edits = {
+      { type = "deletion", start_pos = 1, end_pos = 4, b_start_pos = 1 },
+      { type = "replacement", start_pos = 1, end_pos = 1 },
+      { type = "replacement", start_pos = 6, end_pos = 6 },
+    }
+
+    local updated_b = utils.undo_deletions(a, b, edits)
+    assert.are_same([[one "word"]], updated_b)
+
+    assert.are_same({
+      { type = "deletion", start_pos = 1, end_pos = 4, b_start_pos = 1 },
+      -- Positions should have been shifted
+      { type = "replacement", start_pos = 5, end_pos = 5 },
+      { type = "replacement", start_pos = 10, end_pos = 10 },
+    }, edits)
+  end)
 end)
 
 describe("Index to text position", function()
@@ -125,7 +145,7 @@ describe("Get multiline highlights from edits", function()
   local dummy_hl_groups = { insertion = "I", replacement = "R", deletion = "D" }
 
   it("works for insertion across multiple lines", function()
-    local a = "line_1\naaline_4\n"
+    -- a = "line_1\naaline_4\n"
     local b = "line_1\naaNEW\nNEW\nXXline_4\n"
     -- 1-indexed, inclusive; inserted "NEW\nNEW\nXX"
     local edits = { { type = "insertion", start_pos = 10, end_pos = 19 } }
@@ -139,7 +159,8 @@ describe("Get multiline highlights from edits", function()
   end)
 
   it("returns positions on a single line when inserting at the end of the line", function()
-    local a, b = "abc", "abcNEW"
+    -- a = "ab"
+    local b = "abcNEW"
     local edits = { { type = "insertion", start_pos = 4, end_pos = 6 } }
     local actual = utils.get_multiline_highlights(b, edits, dummy_hl_groups)
     assert.are_same({
@@ -148,8 +169,8 @@ describe("Get multiline highlights from edits", function()
     }, actual)
   end)
 
-  it("#lel works for deletion after insertion on single line", function()
-    local a = "LiXX"
+  it("works for deletion after insertion on single line", function()
+    -- a = "LiXX"
     local b = "ILi"
     local edits = {
       { type = "insertion", start_pos = 1, end_pos = 1 },
