@@ -91,7 +91,7 @@ describe("Levenshtein get_edits", function()
 
   it("prioritizes consecutive edits of the same type (deletion)", function()
     -- This used to return a replacement, deletion, replacement
-    local actual = provider.get_edits([[this 'word']], [['word"]])
+    local actual = provider.get_edits([[this 'word']], [["word"]])
     assert.are_same({
       { type = "insertion", start_pos = 1, end_pos = 4 },
       { type = "replacement", start_pos = 5, end_pos = 5 },

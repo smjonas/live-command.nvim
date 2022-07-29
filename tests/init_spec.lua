@@ -7,7 +7,7 @@ describe("Preview", function()
   end)
 
   describe("per line", function()
-    it("works", function()
+    it("#kek works", function()
       local set_line = mock(function(line_nr, line) end)
       local apply_highlight = mock(function(hl) end)
       local cached_lines = { "Line 1", "Line 2", "Line", "Line" }
@@ -56,9 +56,43 @@ describe("Preview", function()
 
       assert.stub(apply_highlight).was_called_with {
         line = 3,
-        start_col = 3,
-        end_col = 4,
+        start_col = 5,
+        end_col = 6,
         hl_group = "I",
+      }
+    end)
+
+    it("works when replacement / insertion is preceded by deletion", function()
+      local apply_highlight = mock(function(hl) end)
+      live_command._preview_per_line(
+        { [[this 'word']] },
+        { [["word"]] },
+        { insertion = "I", replacement = "R", deletion = "D" },
+        nil,
+        function() end,
+        apply_highlight
+      )
+
+      assert.stub(apply_highlight).was_called_with {
+        line = 1,
+        start_col = 1,
+        end_col = 5,
+        hl_group = "D",
+      }
+
+      assert.stub(apply_highlight).was_called_with {
+        line = 1,
+        -- Should be shifted because the deletion edit at the start
+        start_col = 6,
+        end_col = 6,
+        hl_group = "R",
+      }
+
+      assert.stub(apply_highlight).was_called_with {
+        line = 1,
+        start_col = 11,
+        end_col = 11,
+        hl_group = "R",
       }
     end)
 
@@ -99,9 +133,7 @@ describe("Preview", function()
 
   it("across lines works", function()
     local set_lines = mock(function(lines) end)
-    local apply_highlight = mock(function(hl)
-      -- vim.pretty_print(hl)
-    end)
+    local apply_highlight = mock(function(hl) end)
 
     local cached_lines = {
       "Identical",
