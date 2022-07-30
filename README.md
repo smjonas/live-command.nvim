@@ -7,7 +7,7 @@ View the effects of any command on your buffer contents live. Preview macros, th
 > :warning: This plugin is still in development and breaking changes may occur without prior announcement.
 > Make sure to watch this project on GitHub to be notified when it's released!
 
-## :sparkles: Goals and Features
+## Goals and Features
 - Make it extremely simple to create previewable commands in Neovim
 - Smart highlighting based on the Levenshtein distance algorithm
 - View individual insertions, replacements and deletions
@@ -69,6 +69,7 @@ require("live_command").setup {
       replacement = "DiffChanged",
       deletion = "DiffDelete",
     },
+    hl_range = { 0, 0, kind = "relative" },
   },
 }
 ```
@@ -90,3 +91,25 @@ Default: `{ insertion = "DiffAdd", replacement = "DiffChanged", deletion = "Diff
 A list of highlight groups per edit type (insertion, replacement or deletion) used for highlighting buffer changes.
 The value can be `nil` in which case no highlights will be shown for that type. If `hl_groups.deletion` is `nil`,
 deletion edits will not be undone which is otherwise done to make them visible.
+
+---
+
+`hl_range: table`
+
+Default: `{ 0, 0, kind = "relative" }`
+
+Determines the line range the command is executed on to calculate the highlights.
+By default, if you run a command like `42Norm dsb`, changes to buffer lines outside the
+given range (here: `42,42`) will not be previewed for performance reasons.
+For certain commands that operate on surrounding lines (such as `dsb`),
+it makes sense to increase this range, e.g. `{ -20, 20, kind = "relative" }`.
+This will include the previous / next 20 lines.
+To make sure that all highlights are shown, you can use `{ 1, -1, kind = "absolute" }`
+(lines are 1-based, negative values are counted from the end of the buffer).
+
+---
+
+Like this project? Give it a :star: to show your support!
+
+Also consider checking out my other plugin [inc-rename.nvim](https://github.com/smjonas/inc-rename.nvim),
+which is optimized for live-renaming with LSP.

@@ -84,7 +84,7 @@ M.get_edits = function(str_a, str_b)
           do_replacement()
         end
       else
-        -- Prioritize edits of the same type as the previous edit
+        -- Prioritize edits of the same type as the previous one
         if can_delete and cur_edit.type == "deletion" then
           do_deletion()
         else

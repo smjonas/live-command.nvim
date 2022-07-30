@@ -10,30 +10,27 @@ M.defaults = {
     replacement = "DiffChanged",
     deletion = "DiffDelete",
   },
+  hl_range = { 0, 0, kind = "relative" },
 }
 
 local scratch_buf, cached_lines
 local prev_lazyredraw
 
 local function preview_across_lines(cached_lns, updated_lines, hl_groups, set_lines, apply_highlight_cb)
-  local keep_deletions = hl_groups["deletion"] == nil
-  if keep_deletions then
-    set_lines(updated_lines)
-  end
-
   local a, b, skipped_lines_count = M.utils.strip_common_linewise(cached_lns, updated_lines)
   a = table.concat(a, "\n")
   b = table.concat(b, "\n")
   local edits = M.provider.get_edits(a, b)
   b = M.utils.undo_deletions(a, b, edits)
 
+  local keep_deletions = hl_groups["deletion"] == nil
   if not keep_deletions then
     -- Undo deletion operations in all lines after the skipped ones
     for line_nr, line in ipairs(vim.split(b, "\n")) do
       updated_lines[skipped_lines_count + line_nr] = line
     end
-    set_lines(updated_lines)
   end
+  set_lines(updated_lines)
 
   for line_nr, hls_per_line in pairs(M.utils.get_multiline_highlights(b, edits, hl_groups)) do
     for _, hl in ipairs(hls_per_line) do
@@ -84,6 +81,25 @@ end
 M._preview_per_line = preview_per_line
 M._preview_across_lines = preview_across_lines
 
+-- Returns a range as expected by vim.api.nvim_buf_get_lines.
+local function make_range(hl_range, line1, line2)
+  if hl_range.kind == "absolute" then
+    -- Wrap negative ranges
+    if hl_range[1] < 0 then
+      local line_count = vim.api.nvim_buf_line_count(0)
+      hl_range[1] = line_count + hl_range[1] + 1
+    end
+    if hl_range[2] < 0 then
+      local line_count = vim.api.nvim_buf_line_count(0)
+      hl_range[2] = line_count + hl_range[2] + 1
+    end
+    return { hl_range[1] - 1, hl_range[2] }
+  else
+    -- relative
+    return { line1 - 1 + hl_range[1], line2 + hl_range[2] }
+  end
+end
+
 local function apply_highlight(hl, line, bufnr, preview_ns)
   vim.api.nvim_buf_add_highlight(bufnr, preview_ns, hl.hl_group, line, hl.start_col - 1, hl.end_col)
 end
@@ -96,9 +112,10 @@ local function command_preview(opts, preview_ns, preview_buf)
     return
   end
 
-  local bufnr = vim.api.nvim_get_current_buf()
-  local range = { opts.line1 - 1, opts.line2 }
+  local command = opts.command
+  local range = make_range(command.hl_range, opts.line1, opts.line2)
 
+  local bufnr = vim.api.nvim_get_current_buf()
   if not scratch_buf then
     prev_lazyredraw = vim.o.lazyredraw
     vim.o.lazyredraw = true
@@ -112,12 +129,15 @@ local function command_preview(opts, preview_ns, preview_buf)
   -- This reduces noise when a plugin modifies vim.v.errmsg (whether accidentally or not).
   local prev_errmsg = vim.v.errmsg
 
-  local command = opts.command
+  -- vim.v.errmsg = vim.v.errmsg .. opts.line1 - range[1] .. "," .. opts.line2 - range[1] .. "," .. #cached_lines
   -- Run the normal mode command and get the updated buffer contents
   vim.api.nvim_cmd({
     cmd = "bufdo",
-    -- Use 1,$ as a range to apply the command to the entire scratch buffer
-    args = { ("1,$%s %s"):format(command.cmd, args) },
+    -- Map the command range to lines in the scratch buffer. E.g. if default range is 3,4
+    -- and hl_range = { -1, 1, kind = "relative" }, then the scratch buffer will contain 4 lines.
+    -- The 1-based range in the scratch buffer becomes 3-1=2,3 which are the lines that
+    -- the command is executed on.
+    args = { ("%d,%d%s %s"):format(opts.line1 - range[1], opts.line2 - range[1], command.cmd, args) },
     range = { scratch_buf },
   }, {})
   vim.v.errmsg = prev_errmsg
@@ -185,10 +205,10 @@ end
 local create_user_commands = function(commands)
   for name, command in pairs(commands) do
     vim.api.nvim_create_user_command(name, function(opts)
-      local range = opts.range == 2 and ("%s,%s"):format(opts.line1, opts.line2)
+      local range_string = opts.range == 2 and ("%s,%s"):format(opts.line1, opts.line2)
         or opts.range == 1 and tostring(opts.line1)
         or ""
-      execute_command(("%s%s %s"):format(range, command.cmd, command.args or opts.args))
+      execute_command(("%s%s %s"):format(range_string, command.cmd, command.args or opts.args))
     end, {
       nargs = "*",
       range = true,
@@ -206,7 +226,7 @@ local validate_config = function(config)
     defaults = { defaults, "table", true },
     commands = { config.commands, "table" },
   }
-  local possible_opts = { "enable_highlighting", "hl_groups" }
+  local possible_opts = { "enable_highlighting", "hl_groups", "hl_range" }
   for _, command in pairs(config.commands) do
     for _, opt in ipairs(possible_opts) do
       if command[opt] == nil and defaults and defaults[opt] ~= nil then
@@ -220,7 +240,20 @@ local validate_config = function(config)
       args = { command.args, "string", true },
       ["command.enable_highlighting"] = { command.enable_highlighting, "boolean", true },
       ["command.hl_groups"] = { command.hl_groups, "table", true },
+      ["command.hl_range"] = { command.hl_range, "table", true },
     }
+
+    if command.hl_range then
+      vim.validate {
+        ["command.hl_range.kind"] = {
+          command.hl_range.kind,
+          function(arg)
+            return arg == nil or arg == "relative" or arg == "absolute"
+          end,
+          '"relative" or "absolute"',
+        },
+      }
+    end
   end
 end
 
