@@ -121,6 +121,10 @@ local function command_preview(opts, preview_ns, preview_buf)
     vim.o.lazyredraw = true
     cursor_col = vim.api.nvim_win_get_cursor(0)[2]
     scratch_buf = vim.api.nvim_create_buf(true, true)
+    -- Make sure 0 and l keys are unmapped, so moving to the right always works
+    -- when running the norm command
+    vim.api.nvim_buf_set_keymap(scratch_buf, "n", "0", "0", {})
+    vim.api.nvim_buf_set_keymap(scratch_buf, "n", "l", "l", {})
     cached_lines = vim.api.nvim_buf_get_lines(bufnr, range[1], range[2], false)
   end
   -- Populate the scratch buffer
