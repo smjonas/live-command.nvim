@@ -13,7 +13,7 @@ M.defaults = {
   hl_range = { 0, 0, kind = "relative" },
 }
 
-local scratch_buf, cached_lines
+local cursor_col, scratch_buf, cached_lines
 local prev_lazyredraw
 
 local function preview_across_lines(cached_lns, updated_lines, hl_groups, set_lines, apply_highlight_cb)
@@ -119,27 +119,31 @@ local function command_preview(opts, preview_ns, preview_buf)
   if not scratch_buf then
     prev_lazyredraw = vim.o.lazyredraw
     vim.o.lazyredraw = true
+    cursor_col = vim.api.nvim_win_get_cursor(0)[2]
     scratch_buf = vim.api.nvim_create_buf(true, true)
     cached_lines = vim.api.nvim_buf_get_lines(bufnr, range[1], range[2], false)
   end
-  -- Clear the scratch buffer
+  -- Populate the scratch buffer
   vim.api.nvim_buf_set_lines(scratch_buf, 0, -1, false, cached_lines)
 
   -- Ignore any errors that occur while running the command.
   -- This reduces noise when a plugin modifies vim.v.errmsg (whether accidentally or not).
   local prev_errmsg = vim.v.errmsg
 
-  -- vim.v.errmsg = vim.v.errmsg .. opts.line1 - range[1] .. "," .. opts.line2 - range[1] .. "," .. #cached_lines
-  -- Run the normal mode command and get the updated buffer contents
-  vim.api.nvim_cmd({
-    cmd = "bufdo",
+  local cmd_string
+  if opts.line1 == opts.line2 then
+    -- If the command is run on a single line, first move the cursor to the correct column manually
+    vim.api.nvim_cmd({ cmd = "bufdo", args = { ("norm 0%dl"):format(cursor_col) }, range = { scratch_buf } }, {})
+    cmd_string = ("%s %s"):format(command.cmd, args)
+  else
     -- Map the command range to lines in the scratch buffer. E.g. if default range is 3,4
     -- and hl_range = { -1, 1, kind = "relative" }, then the scratch buffer will contain 4 lines.
-    -- The 1-based range in the scratch buffer becomes 3-1=2,3 which are the lines that
-    -- the command is executed on.
-    args = { ("%d,%d%s %s"):format(opts.line1 - range[1], opts.line2 - range[1], command.cmd, args) },
-    range = { scratch_buf },
-  }, {})
+    -- The 1-based range in the scratch buffer becomes 3-1=2,3 which are the lines the command is executed on.
+    cmd_string = ("%d,%d%s %s"):format(opts.line1 - range[1], opts.line2 - range[1], command.cmd, args)
+  end
+
+  -- Run the command and get the updated buffer contents
+  vim.api.nvim_cmd({ cmd = "bufdo", args = { cmd_string }, range = { scratch_buf } }, {})
   vim.v.errmsg = prev_errmsg
 
   local updated_lines = vim.api.nvim_buf_get_lines(scratch_buf, 0, -1, false)
