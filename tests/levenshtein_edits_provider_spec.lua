@@ -72,10 +72,10 @@ describe("Levenshtein get_edits", function()
   end)
 
   it("works for mixed insertion and deletion", function()
-    local actual = provider.get_edits("word", "Iwor")
+    local actual = provider.get_edits("a_ :=", "a:=,")
     assert.are_same({
-      { type = "insertion", start_pos = 1, end_pos = 1 },
-      { type = "deletion", start_pos = 4, end_pos = 4, b_start_pos = 5 },
+      { type = "deletion", start_pos = 2, end_pos = 3, b_start_pos = 2 },
+      { type = "insertion", start_pos = 4, end_pos = 4 },
     }, actual)
   end)
 

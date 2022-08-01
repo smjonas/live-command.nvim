@@ -88,10 +88,14 @@ M.get_edits = function(str_a, str_b)
         if can_delete and cur_edit.type == "deletion" then
           do_deletion()
         else
-          -- Only do a replacement if moving left in the matrix (=> insertion) is the shortest path
+          -- Check if moving left in the matrix (=> insertion) is the shortest path
           if cur_edit.type == "insertion" or str_a:sub(row, row) == str_b:sub(col - 1, col - 1) then
             if not try_insertion() then
-              do_replacement()
+              if can_delete then
+                do_deletion()
+              else
+                do_replacement()
+              end
             end
           else
             do_replacement()

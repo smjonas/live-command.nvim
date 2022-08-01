@@ -121,10 +121,6 @@ local function command_preview(opts, preview_ns, preview_buf)
     vim.o.lazyredraw = true
     cursor_col = vim.api.nvim_win_get_cursor(0)[2]
     scratch_buf = vim.api.nvim_create_buf(true, true)
-    -- Make sure 0 and l keys are unmapped, so moving to the right always works
-    -- when running the norm command
-    vim.api.nvim_buf_set_keymap(scratch_buf, "n", "0", "0", {})
-    vim.api.nvim_buf_set_keymap(scratch_buf, "n", "l", "l", {})
     cached_lines = vim.api.nvim_buf_get_lines(bufnr, range[1], range[2], false)
   end
   -- Populate the scratch buffer
@@ -137,7 +133,7 @@ local function command_preview(opts, preview_ns, preview_buf)
   local cmd_string
   if opts.line1 == opts.line2 then
     -- If the command is run on a single line, first move the cursor to the correct column manually
-    vim.api.nvim_cmd({ cmd = "bufdo", args = { ("norm 0%dl"):format(cursor_col) }, range = { scratch_buf } }, {})
+    vim.api.nvim_cmd({ cmd = "bufdo", args = { ("norm! 0%dl"):format(cursor_col) }, range = { scratch_buf } }, {})
     cmd_string = ("%s %s"):format(command.cmd, args)
   else
     -- Map the command range to lines in the scratch buffer. E.g. if default range is 3,4
