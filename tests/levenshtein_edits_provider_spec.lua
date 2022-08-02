@@ -89,3 +89,37 @@ describe("Levenshtein get_edits", function()
     }, actual)
   end)
 end)
+
+describe("Levenshtein merge_edits", function()
+  it("works when deleting characters at start / end of a word", function()
+    local edits = provider.get_edits("ok  black ok", "ok  la ok")
+    local actual = provider._merge_edits(edits, "ok  black ok")
+    assert.are_same({
+      { type = "substitution", start_pos = 5, end_pos = 10 },
+    }, actual)
+  end)
+
+  it("does not merge when less than half of a word's characters have changed", function()
+    local a = "eiht for"
+    local edits = provider.get_edits(a, "eight four")
+    local actual = provider._merge_edits(edits, a)
+    assert.are_same(edits, actual)
+  end)
+
+  it("works when characters were inserted in the middle of a word", function()
+    local a = "ok  black ok"
+    local edits = provider.get_edits(a, "ok  la ok")
+    local actual = provider._merge_edits(edits, a)
+    assert.are_same({
+      { type = "substitution", start_pos = 5, end_pos = 10 },
+    }, actual)
+  end)
+
+  it("does not merge when characters were inserted at the start / end of a word", function()
+    local edits = provider.get_edits("ok  black ok", "ok  la ok")
+    local actual = provider._merge_edits(edits, "ok  black ok")
+    assert.are_same({
+      { type = "substitution", start_pos = 5, end_pos = 10 },
+    }, actual)
+  end)
+end)
