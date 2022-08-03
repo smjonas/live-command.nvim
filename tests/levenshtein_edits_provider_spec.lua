@@ -12,26 +12,26 @@ describe("Levenshtein edits provider", function()
   end)
 end)
 
-describe("Levenshtein get_edits", function()
+describe("#hey Levenshtein get_edits", function()
   it("works for insertion", function()
     local actual, _ = provider.get_edits("b", "abc")
     assert.are_same({
-      { type = "insertion", a_start = 1, a_end = 1 },
-      { type = "insertion", a_start = 3, a_end = 3 },
+      { type = "insertion", a_start = 1, len = 1, b_start = 1 },
+      { type = "insertion", a_start = 1, len = 1, b_start = 3 },
     }, actual)
   end)
 
   it("works when first string is empty", function()
     local actual = provider.get_edits("", "ab")
     assert.are_same({
-      { type = "insertion", a_start = 1, a_end = 2 },
+      { type = "insertion", a_start = 1, len = 2, b_start = 1 },
     }, actual)
   end)
 
   it("works when second string is empty", function()
     local actual = provider.get_edits("ab", "")
     assert.are_same({
-      { type = "deletion", a_start = 1, a_end = 2, b_start = 1 },
+      { type = "deletion", a_start = 1, len = 2, b_start = 1 },
     }, actual)
   end)
 
@@ -43,16 +43,16 @@ describe("Levenshtein get_edits", function()
   it("works for replacement", function()
     local actual = provider.get_edits("abcd", "aBCd")
     assert.are_same({
-      { type = "replacement", a_start = 2, a_end = 3 },
+      { type = "replacement", a_start = 2, b_start = 2, len = 2 },
     }, actual)
   end)
 
   it("works for mixed insertion and replacement", function()
     local actual = provider.get_edits("abcd", "AbecD")
     assert.are_same({
-      { type = "replacement", a_start = 1, a_end = 1, b_start = 1, b_end = 1 },
-      { type = "insertion", a_start = 3, a_end = 3, b_start = 3, b_end = 3 },
-      { type = "replacement", a_start = 4, a_end = 4, b_start = 5, b_end = 5 },
+      { type = "replacement", a_start = 1, b_start = 1, len = 1 },
+      { type = "insertion", a_start = 2, b_start = 3, len = 1 },
+      { type = "replacement", a_start = 4, b_start = 5, len = 1 },
     }, actual)
   end)
 
@@ -66,26 +66,26 @@ describe("Levenshtein get_edits", function()
   it("works for deletion within word", function()
     local actual = provider.get_edits("abcde", "d")
     assert.are_same({
-      { type = "deletion", a_start = 1, a_end = 3, b_start = 1 },
-      { type = "deletion", a_start = 5, a_end = 5, b_start = 2 },
+      { type = "deletion", a_start = 1, b_start = 1, len = 3 },
+      { type = "deletion", a_start = 5, b_start = 2, len = 1 },
     }, actual)
   end)
 
   it("works for mixed insertion and deletion", function()
     local actual = provider.get_edits("a_ :=", "a:=,")
     assert.are_same({
-      { type = "deletion", a_start = 2, a_end = 3, b_start = 2 },
-      { type = "insertion", a_start = 5, a_end = 5, b_start = 4, b_end = 4 },
+      { type = "deletion", a_start = 2, b_start = 2, len = 2 },
+      { type = "insertion", a_start = 5, b_start = 4, len = 1 },
     }, actual)
   end)
 
-  it("#lel prioritizes consecutive edits of the same type", function()
+  it("prioritizes consecutive edits of the same type", function()
     -- This used to yield a replacement, insertion, replacement
     local actual = provider.get_edits([['word']], [[new "word"]])
     assert.are_same({
-      { type = "insertion", a_start = 1, a_end = 4, b_start = 1, b_end = 4 },
-      { type = "replacement", a_start = 1, a_end = 1, b_start = 5, b_end = 5 },
-      { type = "replacement", a_start = 10, a_end = 10 },
+      { type = "insertion", a_start = 1, b_start = 1, len = 4 },
+      { type = "replacement", a_start = 1, b_start = 5, len = 1 },
+      { type = "replacement", a_start = 6, b_start = 10, len = 1 },
     }, actual)
   end)
 end)
@@ -99,7 +99,7 @@ describe("#kek Levenshtein merge_edits", function()
     }, actual)
   end)
 
-  it("does not merge when less than half of a word's characters have changed", function()
+  it("#w does not merge when less than half of a word's characters have changed", function()
     local a = "eiht for"
     local edits = provider.get_edits(a, "eight four")
     local actual = provider._merge_edits(edits, a)

@@ -34,9 +34,7 @@ local function merge_edits(edits, a)
   -- and the number of characters modified in a word
   for i, edit in ipairs(edits) do
     -- TODO: refactor: a_start =>a_start, b_start
-    local start_word, end_word =
-      char_pos_to_word[edit.a_start or edit.a_start], char_pos_to_word[edit.a_start or edit.a_end]
-    -- print(i, start_word, end_word, edit.a_start, edit.a_end)
+    local start_word, end_word = char_pos_to_word[edit.a_start], char_pos_to_word[edit.a_start + edit.len - 1]
     if not edits_per_word[start_word] then
       edits_per_word[start_word] = {}
     end
@@ -53,8 +51,7 @@ local function merge_edits(edits, a)
         end
       end
     else
-      changed_chars_count_per_word[start_word] = (changed_chars_count_per_word[start_word] or 0)
-        + (edit.a_end - edit.a_start + 1)
+      changed_chars_count_per_word[start_word] = (changed_chars_count_per_word[start_word] or 0) + edit.len
     end
   end
 
@@ -77,14 +74,15 @@ end
 -- Expose function to tests
 M._merge_edits = merge_edits
 
-local function update_edits(edit_type, cur_edit, a_start, edits)
+local function update_edits(edit_type, cur_edit, a_start, b_start, edits)
   if cur_edit.type == edit_type and cur_edit.a_start == a_start + 1 then
-    print("YA", vim.inspect(cur_edit), a_start)
     -- Extend the edit
     cur_edit.a_start = a_start
+    cur_edit.b_start = b_start
+    cur_edit.len = cur_edit.len + 1
   else
     -- Create a new edit
-    cur_edit = { type = edit_type, a_start = a_start, a_end = a_start }
+    cur_edit = { type = edit_type, a_start = a_start, b_start = b_start, len = 1 }
     table.insert(edits, 1, cur_edit)
   end
   return cur_edit
@@ -99,9 +97,9 @@ M.get_edits = function(str_a, str_b)
 
   local len_a, len_b = #str_a, #str_b
   if len_a == 0 then
-    return { { type = "insertion", a_start = 1, a_end = len_b } }
+    return { { type = "insertion", a_start = 1, len = len_b, b_start = 1 } }
   elseif len_b == 0 then
-    return { { type = "deletion", a_start = 1, a_end = len_a, b_start = 1 } }
+    return { { type = "deletion", a_start = 1, len = len_a, b_start = 1 } }
   end
 
   local matrix = {}
@@ -130,7 +128,7 @@ M.get_edits = function(str_a, str_b)
   local cur_edit = {}
 
   local function do_deletion()
-    cur_edit = update_edits("deletion", cur_edit, row, edits)
+    cur_edit = update_edits("deletion", cur_edit, row, col, edits)
     cur_edit.b_start = col + 1
     row = row - 1
     col = col + 1
@@ -139,22 +137,20 @@ M.get_edits = function(str_a, str_b)
   local function try_insertion()
     local can_insert = matrix[row][col - 1] <= matrix[row - 1][col] and matrix[row][col - 1] <= matrix[row - 1][col - 1]
     if can_insert then
-      cur_edit = update_edits("insertion", cur_edit, col, edits)
-      cur_edit.b_start = row
-      cur_edit.b_end = row + cur_edit.a_end - cur_edit.a_start
+      cur_edit = update_edits("insertion", cur_edit, row, col, edits)
+      print(row, col)
+      -- cur_edit.b_start = row
     end
     return can_insert
   end
 
   local function do_replacement()
-    cur_edit = update_edits("replacement", cur_edit, col, edits)
-    print(cur_edit.a_start, cur_edit.a_end)
+    cur_edit = update_edits("replacement", cur_edit, row, col, edits)
     -- cur_edit.b_start = cur_edit.a_start
     -- cur_edit.b_end = cur_edit.a_end
-    -- cur_edit.a_end = row + 
-    cur_edit.b_start = row
-    cur_edit.b_end = row + cur_edit.a_end - cur_edit.a_start
-    vim.pretty_print(cur_edit)
+    -- cur_edit.a_end = row +
+    -- cur_edit.b_start = row
+    -- cur_edit.b_end = row + cur_edit.a_end - cur_edit.a_start
     row = row - 1
   end
 
@@ -196,14 +192,9 @@ M.get_edits = function(str_a, str_b)
   end
 
   if col > 0 then
-    print(":yas")
-    table.insert(
-      edits,
-      1,
-      { type = "insertion", a_start = 1, a_end = col, b_start = row + 1, b_end = row + 1 + (col - 1) }
-    )
+    table.insert(edits, 1, { type = "insertion", a_start = 1, b_start = row + 1, len = col })
   elseif row > 0 then
-    table.insert(edits, 1, { type = "deletion", a_start = 1, a_end = row, b_start = col + 1 })
+    table.insert(edits, 1, { type = "deletion", a_start = 1, b_start = col + 1, len = row })
   end
   return edits, matrix
 end

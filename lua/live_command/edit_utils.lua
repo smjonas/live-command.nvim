@@ -85,19 +85,19 @@ M.undo_deletions = function(a, b, edits)
 
   for _, edit in ipairs(edits) do
     if edit.type == "deletion" then
-      local deleted_chars = a:sub(edit.a_start, edit.a_end)
+      local new_end = edit.a_start + edit.len - 1
+      local deleted_chars = a:sub(edit.a_start, new_end)
       updated_b = string_insert(updated_b, deleted_chars, edit.b_start + offset)
       -- Increase positions to account for updated b
-      local length = edit.a_end - edit.a_start + 1
       edit.a_start = edit.b_start + offset
-      edit.a_end = edit.a_start + length - 1
+      -- edit.a_end = new_end
       -- Not needed anymore
       edit.b_start = nil
-      offset = offset + length
+      offset = offset + edit.len
     else
       -- Shift all other edits
       edit.a_start = edit.a_start + offset
-      edit.a_end = edit.a_end + offset
+      -- edit.a_end = edit.a_end + offset
     end
   end
   return updated_b
@@ -135,7 +135,7 @@ M.get_multiline_highlights = function(b, edits, hl_groups)
       if not hls[start_line] then
         hls[start_line] = {}
       end
-      local end_line, end_col = M.idx_to_text_pos(b, edit.a_end)
+      local end_line, end_col = M.idx_to_text_pos(b, edit.a_start + edit.len - 1)
 
       local hl_group = hl_groups[edit.type]
       if start_line == end_line then

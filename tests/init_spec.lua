@@ -63,7 +63,9 @@ describe("Preview", function()
     end)
 
     it("works when replacement / insertion is preceded by deletion", function()
-      local apply_highlight = mock(function(hl) end)
+      local apply_highlight = mock(function(hl)
+        vim.pretty_print(hl)
+      end)
       live_command._preview_per_line(
         { [[this 'word']] },
         { [["word"]] },
@@ -82,7 +84,7 @@ describe("Preview", function()
 
       assert.stub(apply_highlight).was_called_with {
         line = 1,
-        -- Should be shifted because the deletion edit at the start
+        -- Should be shifted because of the deletion edit at the start
         start_col = 6,
         end_col = 6,
         hl_group = "R",

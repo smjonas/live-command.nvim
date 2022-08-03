@@ -42,20 +42,19 @@ describe("Undo deletions", function()
     local a = "acx"
     local b = "Abbc"
     local edits = {
-      { type = "replacement", a_start = 1, a_end = 1 },
-      { type = "insertion", a_start = 2, a_end = 3 },
-      -- a_start and a_end are relative to a, b_start is relative to b
-      { type = "deletion", a_start = 3, a_end = 3, b_start = 5 },
+      { type = "replacement", a_start = 1, len = 1 },
+      { type = "insertion", a_start = 2, len = 2 },
+      { type = "deletion", a_start = 3, len = 1, b_start = 5 },
     }
 
     local updated_b = utils.undo_deletions(a, b, edits)
     assert.are_same("Abbcx", updated_b)
 
     assert.are_same({
-      { type = "replacement", a_start = 1, a_end = 1 },
-      { type = "insertion", a_start = 2, a_end = 3 },
-      -- a_start and a_end should now be relative to b
-      { type = "deletion", a_start = 5, a_end = 5 },
+      { type = "replacement", a_start = 1, len = 1 },
+      { type = "insertion", a_start = 2, len = 2 },
+      -- a_start should now be relative to b
+      { type = "deletion", a_start = 5, len = 1 },
     }, edits)
   end)
 
@@ -64,20 +63,20 @@ describe("Undo deletions", function()
     local b = "line1\nline3"
     local edits = {
       -- `X\nline2` and '\nline4' were deleted; not optimal but ok
-      { type = "deletion", a_start = 6, a_end = 12, b_start = 6 },
-      { type = "deletion", a_start = 19, a_end = 24, b_start = 12 },
+      { type = "deletion", a_start = 6, len = 7, b_start = 6 },
+      { type = "deletion", a_start = 19, len = 6, b_start = 12 },
     }
 
     local updated_b = utils.undo_deletions(a, b, edits)
     assert.are_same(a, updated_b)
 
     assert.are_same({
-      { type = "deletion", a_start = 6, a_end = 12 },
+      { type = "deletion", a_start = 6, len = 7 },
       -- a_start should have been increased to account for the updated b
       -- 19 is now the position where the second highlight will start:
       -- ('line1X\nline2\nline3\nline4')
       --                        ^
-      { type = "deletion", a_start = 19, a_end = 24 },
+      { type = "deletion", a_start = 19, len = 6 },
     }, edits)
   end)
 
@@ -86,9 +85,9 @@ describe("Undo deletions", function()
     local b = "IworR"
     local edits = {
       -- `X\nline2` and '\nline4' were deleted; not optimal but ok
-      { type = "insertion", a_start = 1, a_end = 1 },
-      { type = "replacement", a_start = 5, a_end = 5 },
-      { type = "deletion", a_start = 5, a_end = 5, b_start = 6 },
+      { type = "insertion", a_start = 1, len = 1 },
+      { type = "replacement", a_start = 5, len = 1 },
+      { type = "deletion", a_start = 5, len = 1, b_start = 6 },
     }
 
     local updated_b = utils.undo_deletions(a, b, edits)
@@ -99,9 +98,9 @@ describe("Undo deletions", function()
     local a = "one 'word'"
     local b = [["word"]]
     local edits = {
-      { type = "deletion", a_start = 1, a_end = 4, b_start = 1 },
-      { type = "replacement", a_start = 1, a_end = 1 },
-      { type = "replacement", a_start = 6, a_end = 6 },
+      { type = "deletion", a_start = 1, len = 4, b_start = 1 },
+      { type = "replacement", a_start = 1, len = 1 },
+      { type = "replacement", a_start = 6, len = 1 },
     }
 
     local updated_b = utils.undo_deletions(a, b, edits)
@@ -109,10 +108,10 @@ describe("Undo deletions", function()
 
     assert.are_same({
       -- b_start should have been set to nil
-      { type = "deletion", a_start = 1, a_end = 4 },
+      { type = "deletion", a_start = 1, len = 4 },
       -- Positions should have been shifted
-      { type = "replacement", a_start = 5, a_end = 5 },
-      { type = "replacement", a_start = 10, a_end = 10 },
+      { type = "replacement", a_start = 5, len = 1 },
+      { type = "replacement", a_start = 10, len = 1 },
     }, edits)
   end)
 end)
@@ -152,11 +151,11 @@ describe("Get multiline highlights from edits", function()
   -- These must not be nil or else some highlights would be skipped
   local dummy_hl_groups = { insertion = "I", replacement = "R", deletion = "D" }
 
-  it("works for insertion across multiple lines", function()
+  it("#m works for insertion across multiple lines", function()
     -- a = "line_1\naaline_4\n"
     local b = "line_1\naaNEW\nNEW\nXXline_4\n"
     -- 1-indexed, inclusive; inserted "NEW\nNEW\nXX"
-    local edits = { { type = "insertion", a_start = 10, a_end = 19 } }
+    local edits = { { type = "insertion", a_start = 10, len = 10 } }
     local actual = utils.get_multiline_highlights(b, edits, dummy_hl_groups)
     assert.are_same({
       -- 1-indexed, inclusive
@@ -169,7 +168,7 @@ describe("Get multiline highlights from edits", function()
   it("returns positions on a single line when inserting at the end of the line", function()
     -- a = "ab"
     local b = "abcNEW"
-    local edits = { { type = "insertion", a_start = 4, a_end = 6 } }
+    local edits = { { type = "insertion", a_start = 4, len = 3 } }
     local actual = utils.get_multiline_highlights(b, edits, dummy_hl_groups)
     assert.are_same({
       -- 1-indexed, inclusive
@@ -181,8 +180,8 @@ describe("Get multiline highlights from edits", function()
     -- a = "LiXX"
     local b = "ILi"
     local edits = {
-      { type = "insertion", a_start = 1, a_end = 1 },
-      { type = "deletion", a_start = 4, a_end = 5 },
+      { type = "insertion", a_start = 1, len = 1 },
+      { type = "deletion", a_start = 4, len = 2 },
     }
 
     local actual = utils.get_multiline_highlights(b, edits, dummy_hl_groups)
@@ -199,8 +198,8 @@ describe("Get multiline highlights from edits", function()
     local b = "line1\nline3"
     local edits = {
       -- `X\nline2` and '\nline4' were deleted (not optimal but ok)
-      { type = "deletion", a_start = 6, a_end = 12, b_start = 6 },
-      { type = "deletion", a_start = 19, a_end = 24, b_start = 12 },
+      { type = "deletion", a_start = 6, len = 7, b_start = 6 },
+      { type = "deletion", a_start = 19, len = 6, b_start = 12 },
     }
 
     b = utils.undo_deletions(a, b, edits)
