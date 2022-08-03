@@ -85,19 +85,19 @@ M.undo_deletions = function(a, b, edits)
 
   for _, edit in ipairs(edits) do
     if edit.type == "deletion" then
-      local deleted_chars = a:sub(edit.start_pos, edit.end_pos)
-      updated_b = string_insert(updated_b, deleted_chars, edit.b_start_pos + offset)
+      local deleted_chars = a:sub(edit.a_start, edit.a_end)
+      updated_b = string_insert(updated_b, deleted_chars, edit.b_start + offset)
       -- Increase positions to account for updated b
-      local length = edit.end_pos - edit.start_pos + 1
-      edit.start_pos = edit.b_start_pos + offset
-      edit.end_pos = edit.start_pos + length - 1
+      local length = edit.a_end - edit.a_start + 1
+      edit.a_start = edit.b_start + offset
+      edit.a_end = edit.a_start + length - 1
       -- Not needed anymore
-      edit.b_start_pos = nil
+      edit.b_start = nil
       offset = offset + length
     else
       -- Shift all other edits
-      edit.start_pos = edit.start_pos + offset
-      edit.end_pos = edit.end_pos + offset
+      edit.a_start = edit.a_start + offset
+      edit.a_end = edit.a_end + offset
     end
   end
   return updated_b
@@ -125,17 +125,17 @@ M.get_multiline_highlights = function(b, edits, hl_groups)
   local hls = {}
   for _, edit in ipairs(edits) do
     if hl_groups[edit.type] ~= nil then
-      local start_line, start_col = M.idx_to_text_pos(b, edit.start_pos)
+      local start_line, start_col = M.idx_to_text_pos(b, edit.a_start)
       -- Do not create a highlight for a single newline character at the end of a line,
       -- instead jump to the next line
-      if b:sub(edit.start_pos, edit.start_pos) == "\n" then
+      if b:sub(edit.a_start, edit.a_start) == "\n" then
         start_line = start_line + 1
         start_col = 1
       end
       if not hls[start_line] then
         hls[start_line] = {}
       end
-      local end_line, end_col = M.idx_to_text_pos(b, edit.end_pos)
+      local end_line, end_col = M.idx_to_text_pos(b, edit.a_end)
 
       local hl_group = hl_groups[edit.type]
       if start_line == end_line then

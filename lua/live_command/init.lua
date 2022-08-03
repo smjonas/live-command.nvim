@@ -60,8 +60,8 @@ local function preview_per_line(cached_lns, updated_lns, hl_groups, set_lines, s
 
     for _, edit in ipairs(edits) do
       if hl_groups[edit.type] ~= nil then
-        local start_col = edit.b_start_pos or edit.start_pos
-        local end_col = edit.b_start_pos and edit.b_start_pos + (edit.end_pos - edit.start_pos) or edit.end_pos
+        local start_col = edit.b_start or edit.a_start
+        local end_col = edit.b_start and edit.b_start + (edit.a_end - edit.a_start) or edit.a_end
         start_col = start_col + skipped_columns_start
         end_col = end_col + skipped_columns_start
 

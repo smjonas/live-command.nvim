@@ -1,17 +1,5 @@
 local M = {}
 
-local function update_edits(edit_type, cur_edit, cur_start_pos, edits)
-  if cur_edit.type == edit_type and cur_edit.start_pos == cur_start_pos + 1 then
-    -- Extend the edit
-    cur_edit.start_pos = cur_start_pos
-  else
-    -- Create a new edit
-    cur_edit = { type = edit_type, start_pos = cur_start_pos, end_pos = cur_start_pos }
-    table.insert(edits, 1, cur_edit)
-  end
-  return cur_edit
-end
-
 -- If at least half of the characters in a word have been changed,
 -- multiple edits will be combined into a single substitution edit.
 -- This reduces the amount of highlights which may be confusing without this function.
@@ -45,8 +33,10 @@ local function merge_edits(edits, a)
   -- Get a list of edits (their indices, to be precise) that changed each word
   -- and the number of characters modified in a word
   for i, edit in ipairs(edits) do
-    local start_word, end_word = char_pos_to_word[edit.start_pos], char_pos_to_word[edit.end_pos]
-    print(i, start_word, end_word, edit.start_pos, edit.end_pos)
+    -- TODO: refactor: a_start =>a_start, b_start
+    local start_word, end_word =
+      char_pos_to_word[edit.a_start or edit.a_start], char_pos_to_word[edit.a_start or edit.a_end]
+    -- print(i, start_word, end_word, edit.a_start, edit.a_end)
     if not edits_per_word[start_word] then
       edits_per_word[start_word] = {}
     end
@@ -64,7 +54,7 @@ local function merge_edits(edits, a)
       end
     else
       changed_chars_count_per_word[start_word] = (changed_chars_count_per_word[start_word] or 0)
-        + (edit.end_pos - edit.start_pos + 1)
+        + (edit.a_end - edit.a_start + 1)
     end
   end
 
@@ -75,7 +65,7 @@ local function merge_edits(edits, a)
     if edits_per_word[i] and changed_chars_count_per_word[i] >= word_len / 2 then
       -- Replace the edits with a single substitution edit
       edits[edits_per_word[i][1]] =
-        { type = "substitution", start_pos = word_start_pos[i], end_pos = word_start_pos[i] + word_len }
+        { type = "substitution", a_start = word_start_pos[i], a_end = word_start_pos[i] + word_len }
       for j = 2, #edits_per_word[i] do
         table.remove(edits, edits_per_word[i][j])
       end
@@ -87,6 +77,19 @@ end
 -- Expose function to tests
 M._merge_edits = merge_edits
 
+local function update_edits(edit_type, cur_edit, a_start, edits)
+  if cur_edit.type == edit_type and cur_edit.a_start == a_start + 1 then
+    print("YA", vim.inspect(cur_edit), a_start)
+    -- Extend the edit
+    cur_edit.a_start = a_start
+  else
+    -- Create a new edit
+    cur_edit = { type = edit_type, a_start = a_start, a_end = a_start }
+    table.insert(edits, 1, cur_edit)
+  end
+  return cur_edit
+end
+
 -- Returns a list of insertion and replacement operations
 -- that turn the first string into the second one.
 M.get_edits = function(str_a, str_b)
@@ -96,9 +99,9 @@ M.get_edits = function(str_a, str_b)
 
   local len_a, len_b = #str_a, #str_b
   if len_a == 0 then
-    return { { type = "insertion", start_pos = 1, end_pos = len_b } }
+    return { { type = "insertion", a_start = 1, a_end = len_b } }
   elseif len_b == 0 then
-    return { { type = "deletion", start_pos = 1, end_pos = len_a, b_start_pos = 1 } }
+    return { { type = "deletion", a_start = 1, a_end = len_a, b_start = 1 } }
   end
 
   local matrix = {}
@@ -128,7 +131,7 @@ M.get_edits = function(str_a, str_b)
 
   local function do_deletion()
     cur_edit = update_edits("deletion", cur_edit, row, edits)
-    cur_edit.b_start_pos = col + 1
+    cur_edit.b_start = col + 1
     row = row - 1
     col = col + 1
   end
@@ -137,12 +140,21 @@ M.get_edits = function(str_a, str_b)
     local can_insert = matrix[row][col - 1] <= matrix[row - 1][col] and matrix[row][col - 1] <= matrix[row - 1][col - 1]
     if can_insert then
       cur_edit = update_edits("insertion", cur_edit, col, edits)
+      cur_edit.b_start = row
+      cur_edit.b_end = row + cur_edit.a_end - cur_edit.a_start
     end
     return can_insert
   end
 
   local function do_replacement()
     cur_edit = update_edits("replacement", cur_edit, col, edits)
+    print(cur_edit.a_start, cur_edit.a_end)
+    -- cur_edit.b_start = cur_edit.a_start
+    -- cur_edit.b_end = cur_edit.a_end
+    -- cur_edit.a_end = row + 
+    cur_edit.b_start = row
+    cur_edit.b_end = row + cur_edit.a_end - cur_edit.a_start
+    vim.pretty_print(cur_edit)
     row = row - 1
   end
 
@@ -184,9 +196,14 @@ M.get_edits = function(str_a, str_b)
   end
 
   if col > 0 then
-    table.insert(edits, 1, { type = "insertion", start_pos = 1, end_pos = col })
+    print(":yas")
+    table.insert(
+      edits,
+      1,
+      { type = "insertion", a_start = 1, a_end = col, b_start = row + 1, b_end = row + 1 + (col - 1) }
+    )
   elseif row > 0 then
-    table.insert(edits, 1, { type = "deletion", start_pos = 1, end_pos = row, b_start_pos = col + 1 })
+    table.insert(edits, 1, { type = "deletion", a_start = 1, a_end = row, b_start = col + 1 })
   end
   return edits, matrix
 end

@@ -16,22 +16,22 @@ describe("Levenshtein get_edits", function()
   it("works for insertion", function()
     local actual, _ = provider.get_edits("b", "abc")
     assert.are_same({
-      { type = "insertion", start_pos = 1, end_pos = 1 },
-      { type = "insertion", start_pos = 3, end_pos = 3 },
+      { type = "insertion", a_start = 1, a_end = 1 },
+      { type = "insertion", a_start = 3, a_end = 3 },
     }, actual)
   end)
 
   it("works when first string is empty", function()
     local actual = provider.get_edits("", "ab")
     assert.are_same({
-      { type = "insertion", start_pos = 1, end_pos = 2 },
+      { type = "insertion", a_start = 1, a_end = 2 },
     }, actual)
   end)
 
   it("works when second string is empty", function()
     local actual = provider.get_edits("ab", "")
     assert.are_same({
-      { type = "deletion", start_pos = 1, end_pos = 2, b_start_pos = 1 },
+      { type = "deletion", a_start = 1, a_end = 2, b_start = 1 },
     }, actual)
   end)
 
@@ -43,59 +43,59 @@ describe("Levenshtein get_edits", function()
   it("works for replacement", function()
     local actual = provider.get_edits("abcd", "aBCd")
     assert.are_same({
-      { type = "replacement", start_pos = 2, end_pos = 3 },
+      { type = "replacement", a_start = 2, a_end = 3 },
     }, actual)
   end)
 
   it("works for mixed insertion and replacement", function()
     local actual = provider.get_edits("abcd", "AbecD")
     assert.are_same({
-      { type = "replacement", start_pos = 1, end_pos = 1 },
-      { type = "insertion", start_pos = 3, end_pos = 3 },
-      { type = "replacement", start_pos = 5, end_pos = 5 },
+      { type = "replacement", a_start = 1, a_end = 1, b_start = 1, b_end = 1 },
+      { type = "insertion", a_start = 3, a_end = 3, b_start = 3, b_end = 3 },
+      { type = "replacement", a_start = 4, a_end = 4, b_start = 5, b_end = 5 },
     }, actual)
   end)
 
   -- it("prefers right positions when deleting multiple identical characters in a row", function()
   --   local actual = cmd_preview._get_edits("abcccce", "abcce")
   --   assert.are_same({
-  --     { type = "deletion", start_pos = 5, end_pos = 6, b_start_pos = 5 },
+  --     { type = "deletion", a_start = 5, a_end = 6, b_start = 5 },
   --   }, actual)
   -- end)
 
   it("works for deletion within word", function()
     local actual = provider.get_edits("abcde", "d")
     assert.are_same({
-      { type = "deletion", start_pos = 1, end_pos = 3, b_start_pos = 1 },
-      { type = "deletion", start_pos = 5, end_pos = 5, b_start_pos = 2 },
+      { type = "deletion", a_start = 1, a_end = 3, b_start = 1 },
+      { type = "deletion", a_start = 5, a_end = 5, b_start = 2 },
     }, actual)
   end)
 
   it("works for mixed insertion and deletion", function()
     local actual = provider.get_edits("a_ :=", "a:=,")
     assert.are_same({
-      { type = "deletion", start_pos = 2, end_pos = 3, b_start_pos = 2 },
-      { type = "insertion", start_pos = 4, end_pos = 4 },
+      { type = "deletion", a_start = 2, a_end = 3, b_start = 2 },
+      { type = "insertion", a_start = 5, a_end = 5, b_start = 4, b_end = 4 },
     }, actual)
   end)
 
-  it("prioritizes consecutive edits of the same type", function()
+  it("#lel prioritizes consecutive edits of the same type", function()
     -- This used to yield a replacement, insertion, replacement
     local actual = provider.get_edits([['word']], [[new "word"]])
     assert.are_same({
-      { type = "insertion", start_pos = 1, end_pos = 4 },
-      { type = "replacement", start_pos = 5, end_pos = 5 },
-      { type = "replacement", start_pos = 10, end_pos = 10 },
+      { type = "insertion", a_start = 1, a_end = 4, b_start = 1, b_end = 4 },
+      { type = "replacement", a_start = 1, a_end = 1, b_start = 5, b_end = 5 },
+      { type = "replacement", a_start = 10, a_end = 10 },
     }, actual)
   end)
 end)
 
-describe("Levenshtein merge_edits", function()
+describe("#kek Levenshtein merge_edits", function()
   it("works when deleting characters at start / end of a word", function()
     local edits = provider.get_edits("ok  black ok", "ok  la ok")
     local actual = provider._merge_edits(edits, "ok  black ok")
     assert.are_same({
-      { type = "substitution", start_pos = 5, end_pos = 10 },
+      { type = "substitution", a_start = 5, a_end = 10 },
     }, actual)
   end)
 
@@ -111,7 +111,7 @@ describe("Levenshtein merge_edits", function()
     local edits = provider.get_edits(a, "ok  la ok")
     local actual = provider._merge_edits(edits, a)
     assert.are_same({
-      { type = "substitution", start_pos = 5, end_pos = 10 },
+      { type = "substitution", a_start = 5, a_end = 10 },
     }, actual)
   end)
 
@@ -119,7 +119,7 @@ describe("Levenshtein merge_edits", function()
     local edits = provider.get_edits("ok  black ok", "ok  la ok")
     local actual = provider._merge_edits(edits, "ok  black ok")
     assert.are_same({
-      { type = "substitution", start_pos = 5, end_pos = 10 },
+      { type = "substitution", a_start = 5, a_end = 10 },
     }, actual)
   end)
 end)

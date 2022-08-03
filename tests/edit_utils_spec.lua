@@ -42,20 +42,20 @@ describe("Undo deletions", function()
     local a = "acx"
     local b = "Abbc"
     local edits = {
-      { type = "replacement", start_pos = 1, end_pos = 1 },
-      { type = "insertion", start_pos = 2, end_pos = 3 },
-      -- start_pos and end_pos are relative to a, b_start_pos is relative to b
-      { type = "deletion", start_pos = 3, end_pos = 3, b_start_pos = 5 },
+      { type = "replacement", a_start = 1, a_end = 1 },
+      { type = "insertion", a_start = 2, a_end = 3 },
+      -- a_start and a_end are relative to a, b_start is relative to b
+      { type = "deletion", a_start = 3, a_end = 3, b_start = 5 },
     }
 
     local updated_b = utils.undo_deletions(a, b, edits)
     assert.are_same("Abbcx", updated_b)
 
     assert.are_same({
-      { type = "replacement", start_pos = 1, end_pos = 1 },
-      { type = "insertion", start_pos = 2, end_pos = 3 },
-      -- start_pos and end_pos should now be relative to b
-      { type = "deletion", start_pos = 5, end_pos = 5 },
+      { type = "replacement", a_start = 1, a_end = 1 },
+      { type = "insertion", a_start = 2, a_end = 3 },
+      -- a_start and a_end should now be relative to b
+      { type = "deletion", a_start = 5, a_end = 5 },
     }, edits)
   end)
 
@@ -64,20 +64,20 @@ describe("Undo deletions", function()
     local b = "line1\nline3"
     local edits = {
       -- `X\nline2` and '\nline4' were deleted; not optimal but ok
-      { type = "deletion", start_pos = 6, end_pos = 12, b_start_pos = 6 },
-      { type = "deletion", start_pos = 19, end_pos = 24, b_start_pos = 12 },
+      { type = "deletion", a_start = 6, a_end = 12, b_start = 6 },
+      { type = "deletion", a_start = 19, a_end = 24, b_start = 12 },
     }
 
     local updated_b = utils.undo_deletions(a, b, edits)
     assert.are_same(a, updated_b)
 
     assert.are_same({
-      { type = "deletion", start_pos = 6, end_pos = 12 },
-      -- start_pos should have been increased to account for the updated b
+      { type = "deletion", a_start = 6, a_end = 12 },
+      -- a_start should have been increased to account for the updated b
       -- 19 is now the position where the second highlight will start:
       -- ('line1X\nline2\nline3\nline4')
       --                        ^
-      { type = "deletion", start_pos = 19, end_pos = 24 },
+      { type = "deletion", a_start = 19, a_end = 24 },
     }, edits)
   end)
 
@@ -86,9 +86,9 @@ describe("Undo deletions", function()
     local b = "IworR"
     local edits = {
       -- `X\nline2` and '\nline4' were deleted; not optimal but ok
-      { type = "insertion", start_pos = 1, end_pos = 1 },
-      { type = "replacement", start_pos = 5, end_pos = 5 },
-      { type = "deletion", start_pos = 5, end_pos = 5, b_start_pos = 6 },
+      { type = "insertion", a_start = 1, a_end = 1 },
+      { type = "replacement", a_start = 5, a_end = 5 },
+      { type = "deletion", a_start = 5, a_end = 5, b_start = 6 },
     }
 
     local updated_b = utils.undo_deletions(a, b, edits)
@@ -99,20 +99,20 @@ describe("Undo deletions", function()
     local a = "one 'word'"
     local b = [["word"]]
     local edits = {
-      { type = "deletion", start_pos = 1, end_pos = 4, b_start_pos = 1 },
-      { type = "replacement", start_pos = 1, end_pos = 1 },
-      { type = "replacement", start_pos = 6, end_pos = 6 },
+      { type = "deletion", a_start = 1, a_end = 4, b_start = 1 },
+      { type = "replacement", a_start = 1, a_end = 1 },
+      { type = "replacement", a_start = 6, a_end = 6 },
     }
 
     local updated_b = utils.undo_deletions(a, b, edits)
     assert.are_same([[one "word"]], updated_b)
 
     assert.are_same({
-      -- b_start_pos should have been set to nil
-      { type = "deletion", start_pos = 1, end_pos = 4 },
+      -- b_start should have been set to nil
+      { type = "deletion", a_start = 1, a_end = 4 },
       -- Positions should have been shifted
-      { type = "replacement", start_pos = 5, end_pos = 5 },
-      { type = "replacement", start_pos = 10, end_pos = 10 },
+      { type = "replacement", a_start = 5, a_end = 5 },
+      { type = "replacement", a_start = 10, a_end = 10 },
     }, edits)
   end)
 end)
@@ -156,7 +156,7 @@ describe("Get multiline highlights from edits", function()
     -- a = "line_1\naaline_4\n"
     local b = "line_1\naaNEW\nNEW\nXXline_4\n"
     -- 1-indexed, inclusive; inserted "NEW\nNEW\nXX"
-    local edits = { { type = "insertion", start_pos = 10, end_pos = 19 } }
+    local edits = { { type = "insertion", a_start = 10, a_end = 19 } }
     local actual = utils.get_multiline_highlights(b, edits, dummy_hl_groups)
     assert.are_same({
       -- 1-indexed, inclusive
@@ -169,7 +169,7 @@ describe("Get multiline highlights from edits", function()
   it("returns positions on a single line when inserting at the end of the line", function()
     -- a = "ab"
     local b = "abcNEW"
-    local edits = { { type = "insertion", start_pos = 4, end_pos = 6 } }
+    local edits = { { type = "insertion", a_start = 4, a_end = 6 } }
     local actual = utils.get_multiline_highlights(b, edits, dummy_hl_groups)
     assert.are_same({
       -- 1-indexed, inclusive
@@ -181,8 +181,8 @@ describe("Get multiline highlights from edits", function()
     -- a = "LiXX"
     local b = "ILi"
     local edits = {
-      { type = "insertion", start_pos = 1, end_pos = 1 },
-      { type = "deletion", start_pos = 4, end_pos = 5 },
+      { type = "insertion", a_start = 1, a_end = 1 },
+      { type = "deletion", a_start = 4, a_end = 5 },
     }
 
     local actual = utils.get_multiline_highlights(b, edits, dummy_hl_groups)
@@ -199,8 +199,8 @@ describe("Get multiline highlights from edits", function()
     local b = "line1\nline3"
     local edits = {
       -- `X\nline2` and '\nline4' were deleted (not optimal but ok)
-      { type = "deletion", start_pos = 6, end_pos = 12, b_start_pos = 6 },
-      { type = "deletion", start_pos = 19, end_pos = 24, b_start_pos = 12 },
+      { type = "deletion", a_start = 6, a_end = 12, b_start = 6 },
+      { type = "deletion", a_start = 19, a_end = 24, b_start = 12 },
     }
 
     b = utils.undo_deletions(a, b, edits)
