@@ -63,9 +63,7 @@ describe("Preview", function()
     end)
 
     it("works when replacement / insertion is preceded by deletion", function()
-      local apply_highlight = mock(function(hl)
-        vim.pretty_print(hl)
-      end)
+      local apply_highlight = mock(function(hl) end)
       live_command._preview_per_line(
         { [[this 'word']] },
         { [["word"]] },

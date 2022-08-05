@@ -60,9 +60,8 @@ local function preview_per_line(cached_lns, updated_lns, hl_groups, set_lines, s
 
     for _, edit in ipairs(edits) do
       if hl_groups[edit.type] ~= nil then
-        vim.pretty_print(edit)
-        local start_col = edit.b_start or edit.a_start
-        local end_col = edit.b_start and edit.b_start + edit.len - 1 or edit.a_start + edit.len - 1
+        local start_col = edit.b_start --or edit.a_start
+        local end_col = edit.b_start + edit.len - 1 --or edit.a_start + edit.len - 1
         start_col = start_col + skipped_columns_start
         end_col = end_col + skipped_columns_start
 

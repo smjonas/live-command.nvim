@@ -75,7 +75,7 @@ end
 M._merge_edits = merge_edits
 
 local function update_edits(edit_type, cur_edit, a_start, b_start, edits)
-  if cur_edit.type == edit_type and cur_edit.a_start == a_start + 1 then
+  if cur_edit.type == edit_type and (cur_edit.a_start == a_start + 1) or (cur_edit.b_start == b_start + 1) then
     -- Extend the edit
     cur_edit.a_start = a_start
     cur_edit.b_start = b_start
@@ -138,19 +138,12 @@ M.get_edits = function(str_a, str_b)
     local can_insert = matrix[row][col - 1] <= matrix[row - 1][col] and matrix[row][col - 1] <= matrix[row - 1][col - 1]
     if can_insert then
       cur_edit = update_edits("insertion", cur_edit, row, col, edits)
-      print(row, col)
-      -- cur_edit.b_start = row
     end
     return can_insert
   end
 
   local function do_replacement()
     cur_edit = update_edits("replacement", cur_edit, row, col, edits)
-    -- cur_edit.b_start = cur_edit.a_start
-    -- cur_edit.b_end = cur_edit.a_end
-    -- cur_edit.a_end = row +
-    -- cur_edit.b_start = row
-    -- cur_edit.b_end = row + cur_edit.a_end - cur_edit.a_start
     row = row - 1
   end
 

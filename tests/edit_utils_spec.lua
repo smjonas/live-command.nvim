@@ -38,12 +38,12 @@ describe("Stripping common prefix and suffix", function()
 end)
 
 describe("Undo deletions", function()
-  it("works for simple case", function()
+  it("#kekl works for simple case", function()
     local a = "acx"
     local b = "Abbc"
     local edits = {
-      { type = "replacement", a_start = 1, len = 1 },
-      { type = "insertion", a_start = 2, len = 2 },
+      { type = "replacement", a_start = 1, len = 1, b_start = 1 },
+      { type = "insertion", a_start = 2, len = 2, b_start = 2 },
       { type = "deletion", a_start = 3, len = 1, b_start = 5 },
     }
 
@@ -51,14 +51,14 @@ describe("Undo deletions", function()
     assert.are_same("Abbcx", updated_b)
 
     assert.are_same({
-      { type = "replacement", a_start = 1, len = 1 },
-      { type = "insertion", a_start = 2, len = 2 },
-      -- a_start should now be relative to b
-      { type = "deletion", a_start = 5, len = 1 },
+      -- b_start should now be relative to b
+      { type = "replacement", a_start = 1, len = 1, b_start = 1 },
+      { type = "insertion", a_start = 2, len = 2, b_start = 2 },
+      { type = "deletion", a_start = 3, len = 1, b_start = 5 },
     }, edits)
   end)
 
-  it("works for more complex deletion case", function()
+  it("#kekl works for more complex deletion case", function()
     local a = "line1X\nline2\nline3\nline4"
     local b = "line1\nline3"
     local edits = {
@@ -71,22 +71,22 @@ describe("Undo deletions", function()
     assert.are_same(a, updated_b)
 
     assert.are_same({
-      { type = "deletion", a_start = 6, len = 7 },
-      -- a_start should have been increased to account for the updated b
+      { type = "deletion", a_start = 6, len = 7, b_start = 6 },
+      -- b_start should have been increased to account for the updated b
       -- 19 is now the position where the second highlight will start:
       -- ('line1X\nline2\nline3\nline4')
       --                        ^
-      { type = "deletion", a_start = 19, len = 6 },
+      { type = "deletion", a_start = 19, len = 6, b_start = 19 },
     }, edits)
   end)
 
   it("works for mixed insertion, replacement and deletion", function()
     local a = "words"
     local b = "IworR"
+
     local edits = {
-      -- `X\nline2` and '\nline4' were deleted; not optimal but ok
-      { type = "insertion", a_start = 1, len = 1 },
-      { type = "replacement", a_start = 5, len = 1 },
+      { type = "insertion", a_start = 1, len = 1, b_start = 1 },
+      { type = "replacement", a_start = 4, len = 1, b_start = 5 },
       { type = "deletion", a_start = 5, len = 1, b_start = 6 },
     }
 
@@ -99,19 +99,18 @@ describe("Undo deletions", function()
     local b = [["word"]]
     local edits = {
       { type = "deletion", a_start = 1, len = 4, b_start = 1 },
-      { type = "replacement", a_start = 1, len = 1 },
-      { type = "replacement", a_start = 6, len = 1 },
+      { type = "replacement", a_start = 4, len = 1, b_start = 1 },
+      { type = "replacement", a_start = 10, len = 1, b_start = 6 },
     }
 
     local updated_b = utils.undo_deletions(a, b, edits)
     assert.are_same([[one "word"]], updated_b)
 
     assert.are_same({
-      -- b_start should have been set to nil
-      { type = "deletion", a_start = 1, len = 4 },
+      { type = "deletion", a_start = 1, b_start = 1, len = 4 },
       -- Positions should have been shifted
-      { type = "replacement", a_start = 5, len = 1 },
-      { type = "replacement", a_start = 10, len = 1 },
+      { type = "replacement", a_start = 4, b_start = 5, len = 1 },
+      { type = "replacement", a_start = 10, b_start = 10, len = 1 },
     }, edits)
   end)
 end)
@@ -151,11 +150,11 @@ describe("Get multiline highlights from edits", function()
   -- These must not be nil or else some highlights would be skipped
   local dummy_hl_groups = { insertion = "I", replacement = "R", deletion = "D" }
 
-  it("#m works for insertion across multiple lines", function()
+  it("works for insertion across multiple lines", function()
     -- a = "line_1\naaline_4\n"
     local b = "line_1\naaNEW\nNEW\nXXline_4\n"
     -- 1-indexed, inclusive; inserted "NEW\nNEW\nXX"
-    local edits = { { type = "insertion", a_start = 10, len = 10 } }
+    local edits = { { type = "insertion", a_start = 10, len = 10, b_start = 10 } }
     local actual = utils.get_multiline_highlights(b, edits, dummy_hl_groups)
     assert.are_same({
       -- 1-indexed, inclusive
@@ -166,9 +165,9 @@ describe("Get multiline highlights from edits", function()
   end)
 
   it("returns positions on a single line when inserting at the end of the line", function()
-    -- a = "ab"
+    -- a = "abc"
     local b = "abcNEW"
-    local edits = { { type = "insertion", a_start = 4, len = 3 } }
+    local edits = { { type = "insertion", a_start = 3, len = 3, b_start = 4 } }
     local actual = utils.get_multiline_highlights(b, edits, dummy_hl_groups)
     assert.are_same({
       -- 1-indexed, inclusive
@@ -180,8 +179,8 @@ describe("Get multiline highlights from edits", function()
     -- a = "LiXX"
     local b = "ILi"
     local edits = {
-      { type = "insertion", a_start = 1, len = 1 },
-      { type = "deletion", a_start = 4, len = 2 },
+      { type = "insertion", a_start = 1, len = 1, b_start = 1 },
+      { type = "deletion", a_start = 3, len = 2, b_start = 4 },
     }
 
     local actual = utils.get_multiline_highlights(b, edits, dummy_hl_groups)

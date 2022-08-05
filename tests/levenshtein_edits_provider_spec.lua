@@ -12,7 +12,7 @@ describe("Levenshtein edits provider", function()
   end)
 end)
 
-describe("#hey Levenshtein get_edits", function()
+describe("Levenshtein get_edits", function()
   it("works for insertion", function()
     local actual, _ = provider.get_edits("b", "abc")
     assert.are_same({
@@ -71,11 +71,19 @@ describe("#hey Levenshtein get_edits", function()
     }, actual)
   end)
 
-  it("works for mixed insertion and deletion", function()
+  it("works for mixed insertion and deletion 1", function()
     local actual = provider.get_edits("a_ :=", "a:=,")
     assert.are_same({
       { type = "deletion", a_start = 2, b_start = 2, len = 2 },
       { type = "insertion", a_start = 5, b_start = 4, len = 1 },
+    }, actual)
+  end)
+
+  it("works for mixed insertion and deletion 2", function()
+    local actual = provider.get_edits("Line", "ne 3")
+    assert.are_same({
+      { type = "deletion", a_start = 1, b_start = 1, len = 2 },
+      { type = "insertion", a_start = 4, b_start = 3, len = 2 },
     }, actual)
   end)
 
@@ -90,7 +98,7 @@ describe("#hey Levenshtein get_edits", function()
   end)
 end)
 
-describe("#kek Levenshtein merge_edits", function()
+describe("Levenshtein merge_edits", function()
   it("works when deleting characters at start / end of a word", function()
     local edits = provider.get_edits("ok  black ok", "ok  la ok")
     local actual = provider._merge_edits(edits, "ok  black ok")
