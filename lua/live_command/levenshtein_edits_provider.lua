@@ -1,9 +1,9 @@
 local M = {}
 
 -- If at least half of the characters in a word have been changed,
--- multiple edits will be combined into a single substitution edit.
+-- multiple edits will be combined into a single replacement edit.
 -- This reduces the amount of highlights which may be confusing without this function.
-local function merge_edits(edits, a)
+M.merge_edits = function(edits, a)
   if #edits == 1 then
     -- Nothing to merge
     return edits
@@ -33,7 +33,6 @@ local function merge_edits(edits, a)
   -- Get a list of edits (their indices, to be precise) that changed each word
   -- and the number of characters modified in a word
   for i, edit in ipairs(edits) do
-    -- TODO: refactor: a_start =>a_start, b_start
     local start_word, end_word = char_pos_to_word[edit.a_start], char_pos_to_word[edit.a_start + edit.len - 1]
     if not edits_per_word[start_word] then
       edits_per_word[start_word] = {}
@@ -88,7 +87,7 @@ local function update_edits(edit_type, cur_edit, a_start, b_start, edits)
   return cur_edit
 end
 
--- Returns a list of insertion and replacement operations
+-- Returns a list of insertion and change operations
 -- that turn the first string into the second one.
 M.get_edits = function(str_a, str_b)
   if str_a == str_b then
@@ -142,8 +141,8 @@ M.get_edits = function(str_a, str_b)
     return can_insert
   end
 
-  local function do_replacement()
-    cur_edit = update_edits("replacement", cur_edit, row, col, edits)
+  local function do_change()
+    cur_edit = update_edits("change", cur_edit, row, col, edits)
     row = row - 1
   end
 
@@ -157,7 +156,7 @@ M.get_edits = function(str_a, str_b)
         if can_delete then
           do_deletion()
         elseif not try_insertion() then
-          do_replacement()
+          do_change()
         end
       else
         -- Prioritize edits of the same type as the previous one
@@ -170,11 +169,11 @@ M.get_edits = function(str_a, str_b)
               if can_delete then
                 do_deletion()
               else
-                do_replacement()
+                do_change()
               end
             end
           else
-            do_replacement()
+            do_change()
           end
         end
       end

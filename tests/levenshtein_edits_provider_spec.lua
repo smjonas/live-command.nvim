@@ -40,19 +40,19 @@ describe("Levenshtein get_edits", function()
     assert.are_same({}, actual)
   end)
 
-  it("works for replacement", function()
+  it("works for change", function()
     local actual = provider.get_edits("abcd", "aBCd")
     assert.are_same({
-      { type = "replacement", a_start = 2, b_start = 2, len = 2 },
+      { type = "change", a_start = 2, b_start = 2, len = 2 },
     }, actual)
   end)
 
-  it("works for mixed insertion and replacement", function()
+  it("works for mixed insertion and change", function()
     local actual = provider.get_edits("abcd", "AbecD")
     assert.are_same({
-      { type = "replacement", a_start = 1, b_start = 1, len = 1 },
+      { type = "change", a_start = 1, b_start = 1, len = 1 },
       { type = "insertion", a_start = 2, b_start = 3, len = 1 },
-      { type = "replacement", a_start = 4, b_start = 5, len = 1 },
+      { type = "change", a_start = 4, b_start = 5, len = 1 },
     }, actual)
   end)
 
@@ -88,46 +88,47 @@ describe("Levenshtein get_edits", function()
   end)
 
   it("prioritizes consecutive edits of the same type", function()
-    -- This used to yield a replacement, insertion, replacement
+    -- This used to yield a change, insertion, replacement
     local actual = provider.get_edits([['word']], [[new "word"]])
     assert.are_same({
       { type = "insertion", a_start = 1, b_start = 1, len = 4 },
-      { type = "replacement", a_start = 1, b_start = 5, len = 1 },
-      { type = "replacement", a_start = 6, b_start = 10, len = 1 },
+      { type = "change", a_start = 1, b_start = 5, len = 1 },
+      { type = "change", a_start = 6, b_start = 10, len = 1 },
     }, actual)
   end)
 end)
 
 describe("Levenshtein merge_edits", function()
-  it("works when deleting characters at start / end of a word", function()
-    local edits = provider.get_edits("ok  black ok", "ok  la ok")
-    local actual = provider._merge_edits(edits, "ok  black ok")
+  it("#kek works when deleting characters at start / end of a word", function()
+    local edits = provider.get_edits("ok  black ok", "ok  la okI")
+    local actual = provider.merge_edits(edits, "ok  black ok")
     assert.are_same({
-      { type = "substitution", a_start = 5, a_end = 10 },
+      { type = "substitution", a_start = 5, len = 5, b_start = 5 },
+      { type = "insertion", a_start = 12, len = 1, b_start = 13 },
     }, actual)
   end)
 
-  it("#w does not merge when less than half of a word's characters have changed", function()
+  it("does not merge when less than half of a word's characters have changed", function()
     local a = "eiht for"
     local edits = provider.get_edits(a, "eight four")
-    local actual = provider._merge_edits(edits, a)
+    local actual = provider.merge_edits(edits, a)
     assert.are_same(edits, actual)
   end)
 
   it("works when characters were inserted in the middle of a word", function()
     local a = "ok  black ok"
     local edits = provider.get_edits(a, "ok  la ok")
-    local actual = provider._merge_edits(edits, a)
+    local actual = provider.merge_edits(edits, a)
     assert.are_same({
-      { type = "substitution", a_start = 5, a_end = 10 },
+      { type = "substitution", a_start = 5, len = 5, b_start = 5 },
     }, actual)
   end)
 
   it("does not merge when characters were inserted at the start / end of a word", function()
     local edits = provider.get_edits("ok  black ok", "ok  la ok")
-    local actual = provider._merge_edits(edits, "ok  black ok")
+    local actual = provider.merge_edits(edits, "ok  black ok")
     assert.are_same({
-      { type = "substitution", a_start = 5, a_end = 10 },
+      { type = "substitution", a_start = 5, len = 5, b_start = 5 },
     }, actual)
   end)
 end)

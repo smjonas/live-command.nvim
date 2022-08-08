@@ -16,7 +16,7 @@ describe("Preview", function()
       live_command._preview_per_line(
         cached_lines,
         updated_lines,
-        { insertion = "I", replacement = "R", deletion = "D" },
+        { insertion = "I", change = "R", deletion = "D" },
         function() end,
         set_line,
         apply_highlight
@@ -62,12 +62,12 @@ describe("Preview", function()
       }
     end)
 
-    it("works when replacement / insertion is preceded by deletion", function()
+    it("works when change / insertion is preceded by deletion", function()
       local apply_highlight = mock(function(hl) end)
       live_command._preview_per_line(
         { [[this 'word']] },
         { [["word"]] },
-        { insertion = "I", replacement = "R", deletion = "D" },
+        { insertion = "I", change = "R", deletion = "D" },
         nil,
         function() end,
         apply_highlight
@@ -106,7 +106,7 @@ describe("Preview", function()
       live_command._preview_per_line(
         cached_lines,
         updated_lines,
-        { insertion = "I", replacement = "R", deletion = nil },
+        { insertion = "I", change = "R", deletion = nil },
         set_lines,
         set_line,
         apply_highlight
@@ -150,7 +150,7 @@ describe("Preview", function()
     live_command._preview_across_lines(
       cached_lines,
       updated_lines,
-      { insertion = "I", replacement = "R", deletion = "D" },
+      { insertion = "I", change = "R", deletion = "D" },
       set_lines,
       apply_highlight
     )

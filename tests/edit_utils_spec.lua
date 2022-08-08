@@ -42,7 +42,7 @@ describe("Undo deletions", function()
     local a = "acx"
     local b = "Abbc"
     local edits = {
-      { type = "replacement", a_start = 1, len = 1, b_start = 1 },
+      { type = "change", a_start = 1, len = 1, b_start = 1 },
       { type = "insertion", a_start = 2, len = 2, b_start = 2 },
       { type = "deletion", a_start = 3, len = 1, b_start = 5 },
     }
@@ -52,7 +52,7 @@ describe("Undo deletions", function()
 
     assert.are_same({
       -- b_start should now be relative to b
-      { type = "replacement", a_start = 1, len = 1, b_start = 1 },
+      { type = "change", a_start = 1, len = 1, b_start = 1 },
       { type = "insertion", a_start = 2, len = 2, b_start = 2 },
       { type = "deletion", a_start = 3, len = 1, b_start = 5 },
     }, edits)
@@ -80,13 +80,13 @@ describe("Undo deletions", function()
     }, edits)
   end)
 
-  it("works for mixed insertion, replacement and deletion", function()
+  it("works for mixed insertion, change and deletion", function()
     local a = "words"
     local b = "IworR"
 
     local edits = {
       { type = "insertion", a_start = 1, len = 1, b_start = 1 },
-      { type = "replacement", a_start = 4, len = 1, b_start = 5 },
+      { type = "change", a_start = 4, len = 1, b_start = 5 },
       { type = "deletion", a_start = 5, len = 1, b_start = 6 },
     }
 
@@ -99,8 +99,8 @@ describe("Undo deletions", function()
     local b = [["word"]]
     local edits = {
       { type = "deletion", a_start = 1, len = 4, b_start = 1 },
-      { type = "replacement", a_start = 4, len = 1, b_start = 1 },
-      { type = "replacement", a_start = 10, len = 1, b_start = 6 },
+      { type = "change", a_start = 4, len = 1, b_start = 1 },
+      { type = "change", a_start = 10, len = 1, b_start = 6 },
     }
 
     local updated_b = utils.undo_deletions(a, b, edits)
@@ -109,8 +109,8 @@ describe("Undo deletions", function()
     assert.are_same({
       { type = "deletion", a_start = 1, b_start = 1, len = 4 },
       -- Positions should have been shifted
-      { type = "replacement", a_start = 4, b_start = 5, len = 1 },
-      { type = "replacement", a_start = 10, b_start = 10, len = 1 },
+      { type = "change", a_start = 4, b_start = 5, len = 1 },
+      { type = "change", a_start = 10, b_start = 10, len = 1 },
     }, edits)
   end)
 end)
@@ -148,7 +148,7 @@ end)
 
 describe("Get multiline highlights from edits", function()
   -- These must not be nil or else some highlights would be skipped
-  local dummy_hl_groups = { insertion = "I", replacement = "R", deletion = "D" }
+  local dummy_hl_groups = { insertion = "I", change = "R", deletion = "D" }
 
   it("works for insertion across multiple lines", function()
     -- a = "line_1\naaline_4\n"

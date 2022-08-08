@@ -7,7 +7,7 @@ M.defaults = {
   enable_highlighting = true,
   hl_groups = {
     insertion = "DiffAdd",
-    replacement = "DiffChanged",
+    change = "DiffChanged",
     deletion = "DiffDelete",
   },
   hl_range = { 0, 0, kind = "relative" },
@@ -49,7 +49,7 @@ local function preview_per_line(cached_lns, updated_lns, hl_groups, set_lines, s
   for line_nr = 1, #updated_lns do
     local a, b, skipped_columns_start, skipped_columns_end =
       M.utils.strip_common(cached_lns[line_nr], updated_lns[line_nr])
-    local edits = M.provider.get_edits(a, b)
+    local edits = M.provider.merge_edits(M.provider.get_edits(a, b), a)
 
     if not keep_deletions then
       local line = cached_lns[line_nr]
