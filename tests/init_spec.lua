@@ -7,7 +7,7 @@ describe("Preview", function()
   end)
 
   describe("per line", function()
-    it("works", function()
+    it("#kk works", function()
       local set_line = mock(function(line_nr, line) end)
       local apply_highlight = mock(function(hl) end)
       local cached_lines = { "Line 1", "Line 2", "Line", "Line" }
@@ -62,14 +62,18 @@ describe("Preview", function()
       }
     end)
 
-    it("works when change / insertion is preceded by deletion", function()
-      local apply_highlight = mock(function(hl) end)
+    it("#kk works when change / insertion is preceded by deletion", function()
+      local apply_highlight = mock(function(hl)
+        vim.pretty_print(hl)
+      end)
       live_command._preview_per_line(
         { [[this 'word']] },
         { [["word"]] },
         { insertion = "I", change = "R", deletion = "D" },
         nil,
-        function() end,
+        function(x, y)
+          vim.pretty_print(x, y)
+        end,
         apply_highlight
       )
 

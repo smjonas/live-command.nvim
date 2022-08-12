@@ -37,8 +37,8 @@ describe("Stripping common prefix and suffix", function()
   end)
 end)
 
-describe("Undo deletions", function()
-  it("#kekl works for simple case", function()
+describe("#undo Undo deletions", function()
+  it("works for simple case", function()
     local a = "acx"
     local b = "Abbc"
     local edits = {
@@ -46,8 +46,8 @@ describe("Undo deletions", function()
       { type = "insertion", a_start = 2, len = 2, b_start = 2 },
       { type = "deletion", a_start = 3, len = 1, b_start = 5 },
     }
-
-    local updated_b = utils.undo_deletions(a, b, edits)
+    local updated_b
+    updated_b, edits = utils.undo_deletions(a, b, edits, { in_place = true })
     assert.are_same("Abbcx", updated_b)
 
     assert.are_same({
@@ -67,7 +67,7 @@ describe("Undo deletions", function()
       { type = "deletion", a_start = 19, len = 6, b_start = 12 },
     }
 
-    local updated_b = utils.undo_deletions(a, b, edits)
+    local updated_b = utils.undo_deletions(a, b, edits, { in_place = true })
     assert.are_same(a, updated_b)
 
     assert.are_same({
@@ -90,7 +90,7 @@ describe("Undo deletions", function()
       { type = "deletion", a_start = 5, len = 1, b_start = 6 },
     }
 
-    local updated_b = utils.undo_deletions(a, b, edits)
+    local updated_b = utils.undo_deletions(a, b, edits, { in_place = true })
     assert.are_same("IworRs", updated_b)
   end)
 
@@ -103,7 +103,7 @@ describe("Undo deletions", function()
       { type = "change", a_start = 10, len = 1, b_start = 6 },
     }
 
-    local updated_b = utils.undo_deletions(a, b, edits)
+    local updated_b = utils.undo_deletions(a, b, edits, { in_place = true })
     assert.are_same([[one "word"]], updated_b)
 
     assert.are_same({

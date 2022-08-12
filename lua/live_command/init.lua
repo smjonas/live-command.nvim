@@ -21,7 +21,8 @@ local function preview_across_lines(cached_lns, updated_lines, hl_groups, set_li
   a = table.concat(a, "\n")
   b = table.concat(b, "\n")
   local edits = M.provider.get_edits(a, b)
-  b = M.utils.undo_deletions(a, b, edits)
+  -- TODO: handle highlight_deletions
+  b = M.utils.undo_deletions(a, b, edits, { in_place = true })
 
   local keep_deletions = hl_groups["deletion"] == nil
   if not keep_deletions then
@@ -41,21 +42,28 @@ local function preview_across_lines(cached_lns, updated_lines, hl_groups, set_li
 end
 
 local function preview_per_line(cached_lns, updated_lns, hl_groups, set_lines, set_line, apply_highlight_cb)
-  local keep_deletions = hl_groups["deletion"] == nil
-  if keep_deletions then
+  local highlight_deletions = hl_groups["deletion"] ~= nil
+  if not highlight_deletions then
     set_lines(updated_lns)
   end
 
   for line_nr = 1, #updated_lns do
     local a, b, skipped_columns_start, skipped_columns_end =
       M.utils.strip_common(cached_lns[line_nr], updated_lns[line_nr])
-    local edits = M.provider.merge_edits(M.provider.get_edits(a, b), a)
+    -- local edits = M.provider.merge_edits(M.provider.get_edits(a, b), a)
+    local edits = M.provider.get_edits(a, b)
+    edits = M.provider.merge_edits(edits, b)
+    b, edits = M.utils.undo_deletions(a, b, edits, { in_place = highlight_deletions })
+    vim.pretty_print(edits)
+    -- assert(false,b)
 
-    if not keep_deletions then
+    if highlight_deletions then
       local line = cached_lns[line_nr]
       -- Add back the deleted substrings
       local suffix = skipped_columns_end > 0 and line:sub(#line - skipped_columns_end + 1) or ""
-      set_line(line_nr, line:sub(1, skipped_columns_start) .. M.utils.undo_deletions(a, b, edits) .. suffix)
+      -- b = M.utils.undo_deletions(a, b, edits)
+      -- edits = M.provider.merge_edits(edits, a)
+      set_line(line_nr, line:sub(1, skipped_columns_start) .. b .. suffix)
     end
 
     for _, edit in ipairs(edits) do

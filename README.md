@@ -86,11 +86,15 @@ Whether highlights should be shown. If `false`, only text changes are shown.
 
 `hl_groups: table<string, string?>`
 
-Default: `{ insertion = "DiffAdd", replacement = "DiffChanged", deletion = "DiffDelete" }`
+Default: `{ insertion = "DiffAdd", change = "DiffChanged", deletion = "DiffDelete", replacement = "DiffChanged" }`
 
-A list of highlight groups per edit type (insertion, replacement or deletion) used for highlighting buffer changes.
+A list of highlight groups per edit type (insertion, change, deletion or replacement) used for highlighting buffer changes.
 The value can be `nil` in which case no highlights will be shown for that type. If `hl_groups.deletion` is `nil`,
 deletion edits will not be undone which is otherwise done to make them visible.
+
+> TODO: remove? :bulb: Difference between `change` and `replacement`: If a word (defined as a consecutive sequence of
+non-whitespace characters) is changed by multiple edits (e.g. multiple change edits in the middle part of a word),
+`live-command` may combine these edits into a single `replacement` edit spanning the entire word.
 
 ---
 

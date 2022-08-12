@@ -73,16 +73,18 @@ M.strip_common_linewise = function(lines_a, lines_b)
   return new_a, new_b, start_lines_count
 end
 
+local function string_insert(str_1, str_2, pos)
+  return str_1:sub(1, pos - 1) .. str_2 .. str_1:sub(pos)
+end
+
 -- Given a string a that has been transformed into string b using a set of editing
 -- operations, returns b without any deletion operations applied to it.
--- This will adjust positions of edits after a deletion is encountered.
-M.undo_deletions = function(a, b, edits)
-  local function string_insert(str_1, str_2, pos)
-    return str_1:sub(1, pos - 1) .. str_2 .. str_1:sub(pos)
-  end
+-- This will adjust positions of edits to the right of the deletion.
+M.undo_deletions = function(a, b, edits, opts)
   local updated_b = b
   local offset = 0
 
+  local updated_edits = opts.in_place and edits or vim.deepcopy(edits)
   for _, edit in ipairs(edits) do
     if edit.type == "deletion" then
       local new_end = edit.a_start + edit.len - 1
@@ -96,7 +98,10 @@ M.undo_deletions = function(a, b, edits)
       edit.b_start = edit.b_start + offset
     end
   end
-  return updated_b
+  if b == "ne 3" then
+    print(updated_b, "leleelele", vim.inspect(edits))
+  end
+  return updated_b, updated_edits
 end
 
 -- Returns the 0-indexed line and column numbers of the idx-th character of s in s.
@@ -124,6 +129,7 @@ M.get_multiline_highlights = function(b, edits, hl_groups)
       local start_line, start_col = M.idx_to_text_pos(b, edit.b_start)
       -- Do not create a highlight for a single newline character at the end of a line,
       -- instead jump to the next line
+      -- TODO: check this
       if b:sub(edit.a_start, edit.a_start) == "\n" then
         start_line = start_line + 1
         start_col = 1
