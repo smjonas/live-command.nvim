@@ -47,7 +47,7 @@ describe("#undo Undo deletions", function()
       { type = "deletion", a_start = 3, len = 1, b_start = 5 },
     }
     local updated_b
-    updated_b, edits = utils.undo_deletions(a, b, edits, { in_place = true })
+    updated_b = utils.undo_deletions(a, b, edits, { in_place = true })
     assert.are_same("Abbcx", updated_b)
 
     assert.are_same({
@@ -201,7 +201,7 @@ describe("Get multiline highlights from edits", function()
       { type = "deletion", a_start = 19, len = 6, b_start = 12 },
     }
 
-    b = utils.undo_deletions(a, b, edits)
+    b = utils.undo_deletions(a, b, edits, { in_place = true })
     local actual = utils.get_multiline_highlights(b, edits, dummy_hl_groups)
     assert.are_same({
       -- 1-indexed, inclusive; columns are relative to b

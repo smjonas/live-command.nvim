@@ -3,7 +3,7 @@ local live_command = require("live_command")
 describe("Preview", function()
   setup(function()
     live_command.utils = require("live_command.edit_utils")
-    live_command.provider = require("live_command.levenshtein_edits_provider")
+    live_command.provider = require("live_command.provider.levenshtein")
   end)
 
   describe("per line", function()

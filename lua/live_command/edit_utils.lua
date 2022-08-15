@@ -81,27 +81,25 @@ end
 -- operations, returns b without any deletion operations applied to it.
 -- This will adjust positions of edits to the right of the deletion.
 M.undo_deletions = function(a, b, edits, opts)
-  local updated_b = b
+  local new_b = b
   local offset = 0
 
   local updated_edits = opts.in_place and edits or vim.deepcopy(edits)
-  for _, edit in ipairs(edits) do
+  for _, edit in ipairs(updated_edits) do
     if edit.type == "deletion" then
       local new_end = edit.a_start + edit.len - 1
       local deleted_chars = a:sub(edit.a_start, new_end)
-      updated_b = string_insert(updated_b, deleted_chars, edit.b_start + offset)
-      -- Increase positions to account for updated b
+      new_b = string_insert(new_b, deleted_chars, edit.b_start + offset)
+      -- Increase positions to account for new b
       edit.b_start = edit.b_start + offset
       offset = offset + edit.len
+      assert(offset > 0)
     else
       -- Shift all other edits
       edit.b_start = edit.b_start + offset
     end
   end
-  if b == "ne 3" then
-    print(updated_b, "leleelele", vim.inspect(edits))
-  end
-  return updated_b, updated_edits
+  return new_b, updated_edits
 end
 
 -- Returns the 0-indexed line and column numbers of the idx-th character of s in s.

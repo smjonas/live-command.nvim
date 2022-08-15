@@ -1,4 +1,4 @@
-local provider = require("live_command.levenshtein_edits_provider")
+local provider = require("live_command.provider.levenshtein")
 local utils = require("live_command.edit_utils")
 
 describe("Levenshtein edits provider", function()
@@ -94,81 +94,6 @@ describe("Levenshtein get_edits", function()
       { type = "insertion", a_start = 1, b_start = 1, len = 4 },
       { type = "change", a_start = 1, b_start = 5, len = 1 },
       { type = "change", a_start = 6, b_start = 10, len = 1 },
-    }, actual)
-  end)
-end)
-
-describe("#mer Levenshtein merge_edits", function()
-  it("works when deleting characters at start / end of a word", function()
-    local a, b = "ok  black ok", "ok  la okI"
-    local edits = provider.get_edits(a, b)
-    -- merge_edits requires deletions to be undone
-    b, edits = utils.undo_deletions(a, b, edits, { in_place = true })
-
-    local actual = provider.merge_edits(edits, b)
-    assert.are_same({
-      { type = "substitution", a_start = 5, len = 5, b_start = 5 },
-      { type = "insertion", a_start = 12, len = 1, b_start = 13 },
-    }, actual)
-  end)
-
-  it("does not merge when less than half of a word's characters have changed", function()
-    local a, b = "eiht for", "eight four"
-    local edits = provider.get_edits(a, b)
-    b, edits = utils.undo_deletions(a, b, edits, { in_place = true })
-
-    local actual = provider.merge_edits(edits, b)
-    assert.are_same(edits, actual)
-  end)
-
-  it("works when characters were inserted in the middle of a word", function()
-    local a, b = "ok  black ok", "k  la ok"
-    local edits = provider.get_edits(a, b)
-    b, edits = utils.undo_deletions(a, b, edits, { in_place = true })
-
-    local actual = provider.merge_edits(edits, b)
-    assert.are_same({
-      { type = "deletion", a_start = 1, len = 1, b_start = 1 },
-      { type = "substitution", a_start = 5, len = 5, b_start = 5 },
-    }, actual)
-  end)
-
-  it("does not merge for more complex mixed deletion + insertion", function()
-    local a, b = "Line", "ne 3"
-    local edits = provider.get_edits(a, b)
-    b, edits = utils.undo_deletions(a, b, edits, { in_place = true })
-
-    local actual = provider.merge_edits(edits, b)
-    -- Edits should be unchanged
-    assert.are_same({
-      { type = "deletion", a_start = 1, len = 2, b_start = 1 },
-      { type = "insertion", a_start = 4, len = 2, b_start = 5 },
-    }, actual)
-  end)
-
-  it("#cur does not merge", function()
-    local a, b = [[this 'word']], [["word"]]
-    local edits = provider.get_edits(a, b)
-    b, edits = utils.undo_deletions(a, b, edits, { in_place = true })
-
-    local actual = provider.merge_edits(edits, b)
-    -- Edits should be unchanged
-    assert.are_same({
-      { type = "deletion", a_start = 1, len = 2, b_start = 1 },
-      { type = "insertion", a_start = 4, len = 2, b_start = 5 },
-    }, actual)
-  end)
-
-  it("shifts edits of following words", function()
-    local a, b = "this 'word'", "x"
-    local edits = provider.get_edits(a, b)
-    b, edits = utils.undo_deletions(a, b, edits, { in_place = true })
-
-    local actual = provider.merge_edits(edits, b)
-    assert.are_same({
-      { type = "substitution", a_start = 1, len = 4, b_start = 1 },
-      -- Should have been shortened and shifted to the right
-      { type = "deletion", a_start = 6, len = 6, b_start = 6 },
     }, actual)
   end)
 end)

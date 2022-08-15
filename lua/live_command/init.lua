@@ -7,8 +7,9 @@ M.defaults = {
   enable_highlighting = true,
   hl_groups = {
     insertion = "DiffAdd",
-    change = "DiffChanged",
     deletion = "DiffDelete",
+    change = "DiffChanged",
+    substitution = "DiffChanged",
   },
   hl_range = { 0, 0, kind = "relative" },
 }
@@ -50,22 +51,20 @@ local function preview_per_line(cached_lns, updated_lns, hl_groups, set_lines, s
   for line_nr = 1, #updated_lns do
     local a, b, skipped_columns_start, skipped_columns_end =
       M.utils.strip_common(cached_lns[line_nr], updated_lns[line_nr])
-    -- local edits = M.provider.merge_edits(M.provider.get_edits(a, b), a)
+
     local edits = M.provider.get_edits(a, b)
+    -- TODO: don't undo if highlight_deletions == false
+    vim.v.errmsg = "B before " .. b
+    b = M.utils.undo_deletions(a, b, edits, { in_place = highlight_deletions })
+    vim.v.errmsg = vim.v.errmsg .. "B after " .. b
     edits = M.provider.merge_edits(edits, b)
-    b, edits = M.utils.undo_deletions(a, b, edits, { in_place = highlight_deletions })
-    vim.pretty_print(edits)
-    -- assert(false,b)
 
-    if highlight_deletions then
-      local line = cached_lns[line_nr]
-      -- Add back the deleted substrings
-      local suffix = skipped_columns_end > 0 and line:sub(#line - skipped_columns_end + 1) or ""
-      -- b = M.utils.undo_deletions(a, b, edits)
-      -- edits = M.provider.merge_edits(edits, a)
-      set_line(line_nr, line:sub(1, skipped_columns_start) .. b .. suffix)
-    end
+    local line = updated_lns[line_nr]
+    -- Add back the deleted substrings
+    local suffix = skipped_columns_end > 0 and line:sub(#line - skipped_columns_end + 1) or ""
+    set_line(line_nr, line:sub(1, skipped_columns_start) .. b .. suffix)
 
+    vim.g.edits = edits
     for _, edit in ipairs(edits) do
       if hl_groups[edit.type] ~= nil then
         local start_col = edit.b_start --or edit.a_start
@@ -148,20 +147,25 @@ local function command_preview(opts, preview_ns, preview_buf)
   -- This reduces noise when a plugin modifies vim.v.errmsg (whether accidentally or not).
   local prev_errmsg = vim.v.errmsg
 
-  -- Run the command and get the updated buffer contents
-  if opts.line1 == opts.line2 then
+  local cmd_string
+  if range[1] == range[2] then
+    vim.v.errmsg = vim.inspect(range)
+    -- If the command is run on a single line, first move the cursor to the correct column manually
     if cursor_col ~= 0 then
-      -- If the command is run on a single line, first move the cursor to the correct column manually
-      run_buf_cmd(("norm! 0%dl"):format(cursor_col))
+      vim.api.nvim_cmd({ cmd = "bufdo", args = { ("norm! 0%dl"):format(cursor_col) }, range = { scratch_buf } }, {})
     end
-    run_buf_cmd(("%s %s"):format(command.cmd, args))
+    cmd_string = ("%s %s"):format(command.cmd, args)
   else
+    vim.v.errmsg = vim.inspect(range)
     -- Map the command range to lines in the scratch buffer. E.g. if default range is 3,4
     -- and hl_range = { -1, 1, kind = "relative" }, then the scratch buffer will contain 4 lines.
     -- The 1-based range in the scratch buffer becomes 3-1=2,3 which are the lines the command is executed on.
     run_buf_cmd(("%d,%d%s %s"):format(opts.line1 - range[1], opts.line2 - range[1], command.cmd, args))
   end
-  vim.v.errmsg = prev_errmsg
+
+  -- Run the command and get the updated buffer contents
+  vim.api.nvim_cmd({ cmd = "bufdo", args = { cmd_string }, range = { scratch_buf } }, {})
+  -- vim.v.errmsg = prev_errmsg
 
   local updated_lines = vim.api.nvim_buf_get_lines(scratch_buf, 0, -1, false)
   vim.api.nvim_set_current_buf(bufnr)
@@ -191,7 +195,7 @@ local function command_preview(opts, preview_ns, preview_buf)
     end)
   else
     -- In the other case, it is more efficient to compute the distance per line
-    -- TODO: this is too naiive and won't always work
+    vim.v.errmsg = vim.inspect(cached_lines) .. "\n" .. vim.inspect(updated_lines)
     preview_per_line(cached_lines, updated_lines, command.hl_groups, set_lines, function(line_nr, line)
       vim.api.nvim_buf_set_lines(bufnr, line_nr - 1 + range[1], line_nr + range[1], false, { line })
     end, function(hl)
@@ -221,6 +225,7 @@ local function execute_command(command)
     )
   end
   vim.cmd(command)
+  vim.pretty_print(vim.g.edits)
   restore_buffer_state()
 end
 
@@ -302,7 +307,7 @@ M.setup = function(user_config)
     end),
   })
   M.utils = require("live_command.edit_utils")
-  M.provider = require("live_command.levenshtein_edits_provider")
+  M.provider = require("live_command.provider.levenshtein")
 end
 
 return M
