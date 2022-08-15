@@ -131,15 +131,18 @@ local function command_preview(opts, preview_ns, preview_buf)
   local prev_errmsg = vim.v.errmsg
 
   local cmd_string
-  if opts.line1 == opts.line2 then
-    -- If the command is run on a single line, first move the cursor to the correct column manually
-    vim.api.nvim_cmd({ cmd = "bufdo", args = { ("norm! 0%dl"):format(cursor_col) }, range = { scratch_buf } }, {})
+  if range[1] == range[2] - 1 then
+    if cursor_col ~= 0 then
+      -- If the command is run on a single line, first move the cursor to the correct column manually
+      vim.api.nvim_cmd({ cmd = "bufdo", args = { ("norm! 0%dl"):format(cursor_col) }, range = { scratch_buf } }, {})
+    end
     cmd_string = ("%s %s"):format(command.cmd, args)
   else
     -- Map the command range to lines in the scratch buffer. E.g. if default range is 3,4
     -- and hl_range = { -1, 1, kind = "relative" }, then the scratch buffer will contain 4 lines.
     -- The 1-based range in the scratch buffer becomes 3-1=2,3 which are the lines the command is executed on.
-    cmd_string = ("%d,%d%s %s"):format(opts.line1 - range[1], opts.line2 - range[1], command.cmd, args)
+    local cmd_range = command.hl_range.kind == "absolute" and range or { opts.line1 - range[1], opts.line2 - range[2] }
+    cmd_string = ("%d,%d%s %s"):format(cmd_range[1], cmd_range[2], command.cmd, args)
   end
 
   -- Run the command and get the updated buffer contents
@@ -235,8 +238,6 @@ local validate_config = function(config)
     for _, opt in ipairs(possible_opts) do
       if command[opt] == nil and defaults and defaults[opt] ~= nil then
         command[opt] = defaults[opt]
-      else
-        command[opt] = M.defaults[opt]
       end
     end
     vim.validate {
