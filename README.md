@@ -5,11 +5,11 @@
 View the effects of any command on your buffer contents live. Preview macros, the `:norm` command & more!
 
 > :warning: This plugin is still in development and breaking changes may occur without prior announcement.
-> Make sure to watch this project on GitHub to be notified when it's released!
 
 ## Goals and Features
-- Make it extremely simple to create previewable commands in Neovim
-- Smart highlighting based on the Levenshtein distance algorithm
+- Provide a very simple interface for creating previewable commands in Neovim
+- Smart highlighting based on the Levenshtein distance algorithm (with lots of performance
+  improvements and tweaks to get better highlights!)
 - View individual insertions, replacements and deletions
 
 ## Requirements
@@ -101,11 +101,19 @@ Default: `{ 0, 0, kind = "relative" }`
 Determines the line range the command is executed on to calculate the highlights.
 By default, if you run a command like `42Norm dsb`, changes to buffer lines outside the
 given range (here: `42,42`) will not be previewed for performance reasons.
+
 For certain commands that operate on surrounding lines (such as `dsb`),
-it makes sense to increase this range, e.g. `{ -20, 20, kind = "relative" }`.
-This will include the previous / next 20 lines.
-To make sure that all highlights are shown, you can use `{ 1, -1, kind = "absolute" }`
+it makes sense to increase this range. Use `{ kind = "visible" }` to make the diff
+algorithm use all lines that are visible in the current buffer. Tradeoff: this may sometimes be inaccurate
+because lines beyond the visible area are affected.
+
+For even more fine-tuned control over the lines there is the `"relative"` kind:
+`{ -20, 20, kind = "relative" }` will include the previous / next 20 lines relative to the current
+cursor position.
+
+To always use all buffer contents you can use `{ 1, -1, kind = "absolute" }`
 (lines are 1-based, negative values are counted from the end of the buffer).
+Be aware of potential performance issues when using this option though.
 
 ---
 

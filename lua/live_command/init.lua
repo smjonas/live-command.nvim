@@ -95,9 +95,12 @@ local function make_range(hl_range, line1, line2)
       range[2] = line_count + range[2] + 1
     end
     return { hl_range[1] - 1, range[2] }
-  else
-    -- relative
+  elseif hl_range.kind == "relative" then
     return { line1 - 1 + hl_range[1], line2 + hl_range[2] }
+  else
+    -- kind == "visible"
+    local first_line, last_line = vim.fn.line("w0"), vim.fn.line("w$")
+    return { first_line - 1, last_line }
   end
 end
 
@@ -256,9 +259,9 @@ local validate_config = function(config)
         ["command.hl_range.kind"] = {
           command.hl_range.kind,
           function(arg)
-            return arg == nil or arg == "relative" or arg == "absolute"
+            return arg == nil or arg == "relative" or arg == "absolute" or arg == "visible"
           end,
-          '"relative" or "absolute"',
+          '"relative" or "absolute" or "visible"',
         },
       }
     end
