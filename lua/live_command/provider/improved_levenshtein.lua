@@ -104,23 +104,28 @@ local function compact(arr, gaps)
 end
 
 local function remove_marked_deletion_edits(edits, b)
-  vim.pretty_print(edits)
   local offset = 0
-  local new_b = b
+  -- local b_chars_to_remove = {}
   local edits_to_remove = {}
   for i, edit in ipairs(edits) do
+    -- Shift all edits to account for the deleted substring
+    edits[i].b_start = edit.b_start + offset
     if edit.remove then
-      new_b = new_b:sub(1, edit.b_start - 1) .. new_b:sub(edit.b_start + edit.len - 1)
-      offset = offset + edit.len
+      -- for j = edit.b_start, edit.b_start + edit.len - 1 do
+      --   b_chars_to_remove[j] = true
+      -- end
+      -- vim.pretty_print("removing at ", edit.b_start, b:sub(edit.b_start, edit.b_start + edit.len - 1), b)
+      -- vim.pretty_print("sub", new_b:sub(1, edit.b_start - 1), new_b:sub(edit.b_start + edit.len))
       edits_to_remove[i] = true
-    else
-      -- Shift any other edit to account for the deleted substring
-      edits[i].a_start = edits[i].a_start - offset
-      edits[i].b_start = edits[i].b_start - offset
+      offset = offset + edit.len
     end
   end
   compact(edits, edits_to_remove)
-  return edits, new_b
+  -- TODO: there is totally a better way to do this but this seems good enough for now
+  -- local new_b_chars = vim.split(b, "")
+  -- compact(new_b_chars, b_chars_to_remove)
+  -- vim.pretty_print("rem", b_chars_to_remove)
+  return edits
 end
 
 -- If at least half of the characters in a word have been changed,
@@ -128,6 +133,8 @@ end
 -- This reduces the amount of highlights which may be confusing in the default Levenshtein provider.
 M.get_edits = function(a, b)
   local edits = provider.get_edits(a, b)
+  local orig_b = b
+  vim.pretty_print("orig", edits)
   if #edits == 1 then
     -- Nothing to merge
     return edits
@@ -144,7 +151,7 @@ M.get_edits = function(a, b)
     -- vim.pretty_print("edits for i", i, edits_per_word[i])
     -- At least n / 2 characters must have changed for a merge
     local word_len = #words[i]
-    vim.pretty_print(edits_per_word[i], modified_chars_count[i], word_len)
+    vim.pretty_print(edits_per_word[i], modified_chars_count[i], word_len, b)
     if
       edits_per_word[i]
       and #edits_per_word[i] > 1
@@ -158,13 +165,15 @@ M.get_edits = function(a, b)
       local substitution_edit = {
         type = "substitution",
         a_start = word_start_pos[i],
+        -- TODO: don't use word_len, but length of consecutive edits starting at edit_pos(?)
         len = word_len - modified_chars_count[i].deleted_count,
-        b_start = splayed_edits[edit_pos].b_start,
+        b_start = edits[edit_pos].b_start,
       }
-      if splayed_edits[edit_pos].type == "deletion" then
-        -- Start the substitution edit after the first deletion edit of the current word (if available)
-        substitution_edit.b_start = substitution_edit.b_start - splayed_edits[edit_pos].len
-      end
+      -- if splayed_edits[edit_pos].type == "deletion" then
+      --   -- Start the substitution edit after the first deletion edit of the current word (if available)
+      --   vim.pretty_print("move by", splayed_edits[edit_pos].len, substitution_edit.b_start)
+      --   substitution_edit.b_start = substitution_edit.b_start - splayed_edits[edit_pos].len
+      -- end
 
       for _, edit in ipairs(edits_per_word[i]) do
         -- Mark all deletion edits of the current word for removal
@@ -175,7 +184,7 @@ M.get_edits = function(a, b)
       table.insert(edits, edit_pos, substitution_edit)
     end
   end
-  return remove_marked_deletion_edits(edits, b)
+  return remove_marked_deletion_edits(edits, orig_b)
 end
 
 return M
