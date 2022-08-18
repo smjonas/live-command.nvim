@@ -47,9 +47,7 @@ local function get_edits_per_word(edits, splayed_edits, word_start_pos, words)
             modified_count = 0,
           }
         end
-        vim.pretty_print(overlap)
         modified_chars_count[i][count_key] = modified_chars_count[i][count_key] + overlap
-        vim.pretty_print("NEW", edits[j], j, word)
       end
 
       if edit.b_start >= word_start_pos[i] then
@@ -60,8 +58,10 @@ local function get_edits_per_word(edits, splayed_edits, word_start_pos, words)
           end
           table.insert(edits_per_word[i], j)
         end
-        vim.pretty_print("USE", overlap)
-        edits[j].len = edits[j].len - overlap
+        -- edits[j].len = edits[j].len - overlap
+        edits[j].overlap = overlap
+        edits[j].word_len = #word
+        vim.pretty_print("overlap of", overlap, "for ", edit, edits[j])
       end
     end
   end
@@ -98,6 +98,13 @@ local function remove_marked_deletion_edits(edits)
       edits_to_remove[i] = true
       offset = offset + edit.len
     end
+    if edit.activate then
+      edits[i].len = edit.len - edit.overlap
+      edits[i].b_start = edit.b_start - (edit.word_len - edit.overlap)
+    end
+    edits[i].activate = nil
+    edits[i].overlap = nil
+    edits[i].word_len = nil
   end
   compact(edits, edits_to_remove)
   return edits
@@ -120,11 +127,9 @@ M.get_edits = function(a, b)
   local words = vim.split(b, "%s+", { trimempty = true })
   local edits_per_word, modified_chars_count = get_edits_per_word(edits, splayed_edits, word_start_pos, words)
 
-  vim.pretty_print(edits_per_word, modified_chars_count)
   for i = 1, #words do
     -- At least n / 2 characters must have changed for a merge
     local word_len = #words[i]
-    vim.pretty_print("wlen", word_len, edits_per_word[i], modified_chars_count[i])
     if
       edits_per_word[i]
       -- and #edits_per_word[i] > 1
@@ -141,11 +146,16 @@ M.get_edits = function(a, b)
         b_start = edits[edit_pos].b_start,
       }
 
-      vim.pretty_print("epw", edits_per_word[i], i)
       for _, edit in ipairs(edits_per_word[i]) do
         if edits[edit].type == "change" or edits[edit].type == "deletion" then
           edits[edit].remove = true
         end
+        edits[edit].activate = true
+      end
+      local neighbor_pos = edits_per_word[i][#edits_per_word[i]] + 1
+      local neighbor_edit = edits[neighbor_pos]
+      if neighbor_edit and neighbor_edit.overlap and char_pos_to_word[neighbor_edit.b_start] == i then
+        edits[neighbor_pos].activate = true
       end
       table.insert(edits, edit_pos, substitution_edit)
     end
