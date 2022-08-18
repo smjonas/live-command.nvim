@@ -1,7 +1,7 @@
 local provider = require("live_command.provider.improved_levenshtein")
 
-describe("Improved Levenshtein get_edits", function()
-  it("works when deleting characters at start / end of a word", function()
+describe("#lev Improved Levenshtein get_edits", function()
+  it("#works when deleting characters at start / end of a word", function()
     -- Expected: 1-4, 6 / 1-6, 9,
     -- 1. 6-4 == len + 1
     -- 2. 9-6 == len + 1
@@ -13,7 +13,7 @@ describe("Improved Levenshtein get_edits", function()
     }, edits)
   end)
 
-  it("works when characters were inserted in the middle of a word", function()
+  it("#lel works when characters were inserted in the middle of a word", function()
     local a, b = "ok  black ok", "k  la ok"
     local edits = provider.get_edits(a, b)
     assert.are_same({
@@ -22,11 +22,12 @@ describe("Improved Levenshtein get_edits", function()
     }, edits)
   end)
 
-  it("shifts edits of following words", function()
+  it("#this shifts edits of following words", function()
     local a, b = "this 'word'", "x"
     local edits = provider.get_edits(a, b)
     assert.are_same({
       { type = "substitution", a_start = 1, len = 1, b_start = 1 },
+      { type = "deletion", a_start = 2, len = 7, b_start = 2 },
     }, edits)
   end)
 

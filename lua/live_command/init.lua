@@ -53,22 +53,15 @@ local function preview_per_line(cached_lns, updated_lns, hl_groups, set_lines, s
       M.utils.strip_common(cached_lns[line_nr], updated_lns[line_nr])
 
     local edits = M.provider.get_edits(a, b)
-    -- TODO: don't undo if highlight_deletions == false
-    vim.v.errmsg = "B before " .. b
-    b = M.utils.undo_deletions(a, b, edits, { in_place = highlight_deletions })
-    vim.v.errmsg = vim.v.errmsg .. "B after " .. b
-    edits = M.provider.merge_edits(edits, b)
-
     local line = updated_lns[line_nr]
     -- Add back the deleted substrings
     local suffix = skipped_columns_end > 0 and line:sub(#line - skipped_columns_end + 1) or ""
     set_line(line_nr, line:sub(1, skipped_columns_start) .. b .. suffix)
 
-    vim.g.edits = edits
     for _, edit in ipairs(edits) do
       if hl_groups[edit.type] ~= nil then
-        local start_col = edit.b_start --or edit.a_start
-        local end_col = edit.b_start + edit.len - 1 --or edit.a_start + edit.len - 1
+        local start_col = edit.b_start
+        local end_col = edit.b_start + edit.len - 1
         start_col = start_col + skipped_columns_start
         end_col = end_col + skipped_columns_start
 
@@ -225,7 +218,6 @@ local function execute_command(command)
     )
   end
   vim.cmd(command)
-  vim.pretty_print(vim.g.edits)
   restore_buffer_state()
 end
 
@@ -307,7 +299,7 @@ M.setup = function(user_config)
     end),
   })
   M.utils = require("live_command.edit_utils")
-  M.provider = require("live_command.provider.levenshtein")
+  M.provider = require("live_command.provider.improved_levenshtein")
 end
 
 return M

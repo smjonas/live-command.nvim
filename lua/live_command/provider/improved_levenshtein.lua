@@ -26,56 +26,42 @@ local function get_char_pos_to_word(b)
   return char_pos_to_word, word_start_pos
 end
 
-local function get_edits_per_word(edits, char_pos_to_word)
+local function get_edits_per_word(edits, splayed_edits, word_start_pos, words)
   local edits_per_word = {}
   local modified_chars_count = {}
+
   -- Get a list of edits (their indices, to be precise) that changed each word
   -- and the number of characters modified in a word
-  for i, edit in ipairs(edits) do
-    local start_pos, end_pos = edit.b_start, edit.b_start + edit.len - 1
-    -- -- Move start_pos to the right until the next word (if there is one) and end_pos to the left
-    while start_pos <= char_pos_to_word.last_pos and start_pos < end_pos do
-      if char_pos_to_word[start_pos] and char_pos_to_word[end_pos] then
-        break
-      end
-      if not char_pos_to_word[start_pos] then
-        start_pos = start_pos + 1
-      end
-      if not char_pos_to_word[end_pos] then
-        end_pos = end_pos - 1
-      end
-    end
-
-    local start_word = char_pos_to_word[start_pos]
-    if start_word then
-      if not edits_per_word[start_word] then
-        edits_per_word[start_word] = {}
-      end
-      table.insert(edits_per_word[start_word], i)
-
-      local end_word = char_pos_to_word[end_pos]
-      if start_word ~= end_word then
-        if not edits_per_word[end_word] then
-          edits_per_word[end_word] = {}
-        end
-        table.insert(edits_per_word[end_word], i)
-      end
-
-      if not modified_chars_count[start_word] then
-        modified_chars_count[start_word] = {
-          modified_count = 0,
-          deleted_count = 0,
-        }
-      end
+  for i, word in ipairs(words) do
+    for j, edit in ipairs(splayed_edits) do
       local count_key = edit.type == "deletion" and "deleted_count" or "modified_count"
+      local overlap = math.max(
+        0,
+        math.min(word_start_pos[i] + #word, edit.b_start + edit.len) - math.max(word_start_pos[i], edit.b_start)
+      )
 
-      for j = start_pos, end_pos do
-        local word = char_pos_to_word[j]
-        if word then
-          modified_chars_count[start_word][count_key] = modified_chars_count[start_word][count_key] + 1
-        else
-          break
+      if overlap > 0 then
+        if not modified_chars_count[i] then
+          modified_chars_count[i] = {
+            deleted_count = 0,
+            modified_count = 0,
+          }
         end
+        vim.pretty_print(overlap)
+        modified_chars_count[i][count_key] = modified_chars_count[i][count_key] + overlap
+        vim.pretty_print("NEW", edits[j], j, word)
+      end
+
+      if edit.b_start >= word_start_pos[i] then
+        if edit.b_start + edit.len <= word_start_pos[i] + #word then
+          if not edits_per_word[i] then
+            -- TODO: refactor with default_table
+            edits_per_word[i] = {}
+          end
+          table.insert(edits_per_word[i], j)
+        end
+        vim.pretty_print("USE", overlap)
+        edits[j].len = edits[j].len - overlap
       end
     end
   end
@@ -131,15 +117,17 @@ M.get_edits = function(a, b)
   b, splayed_edits = utils.undo_deletions(a, b, edits, { in_place = false })
 
   local char_pos_to_word, word_start_pos = get_char_pos_to_word(b)
-  local edits_per_word, modified_chars_count = get_edits_per_word(splayed_edits, char_pos_to_word)
-
   local words = vim.split(b, "%s+", { trimempty = true })
+  local edits_per_word, modified_chars_count = get_edits_per_word(edits, splayed_edits, word_start_pos, words)
+
+  vim.pretty_print(edits_per_word, modified_chars_count)
   for i = 1, #words do
     -- At least n / 2 characters must have changed for a merge
     local word_len = #words[i]
+    vim.pretty_print("wlen", word_len, edits_per_word[i], modified_chars_count[i])
     if
       edits_per_word[i]
-      and #edits_per_word[i] > 1
+      -- and #edits_per_word[i] > 1
       and word_len > 2
       and modified_chars_count[i].modified_count + modified_chars_count[i].deleted_count > word_len / 2
     then
@@ -153,6 +141,7 @@ M.get_edits = function(a, b)
         b_start = edits[edit_pos].b_start,
       }
 
+      vim.pretty_print("epw", edits_per_word[i], i)
       for _, edit in ipairs(edits_per_word[i]) do
         if edits[edit].type == "change" or edits[edit].type == "deletion" then
           edits[edit].remove = true

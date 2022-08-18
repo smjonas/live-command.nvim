@@ -8,9 +8,13 @@ describe("Preview", function()
 
   describe("per line", function()
     it("#kk works", function()
-      local set_line = mock(function(line_nr, line) end)
-      local apply_highlight = mock(function(hl) end)
-      local cached_lines = { "Line 1", "Line 2", "Line", "Line" }
+      local set_line = mock(function(line_nr, line)
+        vim.pretty_print("called with", line_nr, line)
+      end)
+      local apply_highlight = mock(function(hl)
+        vim.pretty_print(hl)
+      end)
+      local cached_lines = { "Line 1 test", "Line 2", "Line", "Line" }
       local updated_lines = { "LRne", "LineI 2", "ne 3", "Line" }
 
       live_command._preview_per_line(
