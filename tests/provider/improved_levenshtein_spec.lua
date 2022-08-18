@@ -1,8 +1,7 @@
 local provider = require("live_command.provider.improved_levenshtein")
-local utils = require("live_command.edit_utils")
 
 describe("Improved Levenshtein get_edits", function()
-  it("#firt works when deleting characters at start / end of a word", function()
+  it("works when deleting characters at start / end of a word", function()
     -- Expected: 1-4, 6 / 1-6, 9,
     -- 1. 6-4 == len + 1
     -- 2. 9-6 == len + 1
@@ -14,7 +13,7 @@ describe("Improved Levenshtein get_edits", function()
     }, edits)
   end)
 
-  it("#now works when characters were inserted in the middle of a word", function()
+  it("works when characters were inserted in the middle of a word", function()
     local a, b = "ok  black ok", "k  la ok"
     local edits = provider.get_edits(a, b)
     assert.are_same({
@@ -23,48 +22,41 @@ describe("Improved Levenshtein get_edits", function()
     }, edits)
   end)
 
-  it("#here shifts edits of following words", function()
+  it("shifts edits of following words", function()
     local a, b = "this 'word'", "x"
     local edits = provider.get_edits(a, b)
     assert.are_same({
       { type = "substitution", a_start = 1, len = 1, b_start = 1 },
-      -- Should have been shortened and shifted to the right
-      { type = "deletion", a_start = 6, len = 6, b_start = 6 },
     }, edits)
   end)
 
-  it("does not merge when less than half of a word's characters have changed", function()
+  it("does not merge when less than half of a word's characters were changed", function()
     local a, b = "eiht for", "eight four"
     local edits = provider.get_edits(a, b)
-    b = utils.undo_deletions(a, b, edits, { in_place = true })
-
-    local actual = provider.get_edits(edits, b)
-    assert.are_same(edits, actual)
+    assert.are_same({
+      { a_start = 2, b_start = 3, len = 1, type = "insertion" },
+      { a_start = 7, b_start = 9, len = 1, type = "insertion" },
+    }, edits)
   end)
 
-  it("does not merge for more complex mixed deletion + insertion", function()
+  it("does not merge for mixed deletion + insertion", function()
     local a, b = "Line", "ne 3"
     local edits = provider.get_edits(a, b)
-    b = utils.undo_deletions(a, b, edits, { in_place = true })
-
-    local actual = provider.get_edits(edits, b)
     -- Edits should be unchanged
     assert.are_same({
       { type = "deletion", a_start = 1, len = 2, b_start = 1 },
-      { type = "insertion", a_start = 4, len = 2, b_start = 5 },
-    }, actual)
+      { type = "insertion", a_start = 4, len = 2, b_start = 3 },
+    }, edits)
   end)
 
-  it("does not merge", function()
+  it("does not merge for mixed deletion + change", function()
     local a, b = [[this 'word']], [["word"]]
     local edits = provider.get_edits(a, b)
-    b = utils.undo_deletions(a, b, edits, { in_place = true })
-
-    local actual = provider.get_edits(edits, b)
     -- Edits should be unchanged
     assert.are_same({
-      { type = "deletion", a_start = 1, len = 2, b_start = 1 },
-      { type = "insertion", a_start = 4, len = 2, b_start = 5 },
-    }, actual)
+      { a_start = 1, b_start = 1, len = 5, type = "deletion" },
+      { a_start = 6, b_start = 1, len = 1, type = "change" },
+      { a_start = 11, b_start = 6, len = 1, type = "change" },
+    }, edits)
   end)
 end)

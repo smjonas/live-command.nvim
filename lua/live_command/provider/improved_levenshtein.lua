@@ -47,9 +47,6 @@ local function get_edits_per_word(edits, char_pos_to_word)
     end
 
     local start_word = char_pos_to_word[start_pos]
-    if i == 3 then
-      -- assert(start_word, vim.inspect(start_pos, char_pos_to_word))
-    end
     if start_word then
       if not edits_per_word[start_word] then
         edits_per_word[start_word] = {}
@@ -76,6 +73,8 @@ local function get_edits_per_word(edits, char_pos_to_word)
         local word = char_pos_to_word[j]
         if word then
           modified_chars_count[start_word][count_key] = modified_chars_count[start_word][count_key] + 1
+        else
+          break
         end
       end
     end
@@ -103,38 +102,27 @@ local function compact(arr, gaps)
   return arr
 end
 
-local function remove_marked_deletion_edits(edits, b)
+local function remove_marked_deletion_edits(edits)
   local offset = 0
-  -- local b_chars_to_remove = {}
   local edits_to_remove = {}
   for i, edit in ipairs(edits) do
     -- Shift all edits to account for the deleted substring
     edits[i].b_start = edit.b_start + offset
     if edit.remove then
-      -- for j = edit.b_start, edit.b_start + edit.len - 1 do
-      --   b_chars_to_remove[j] = true
-      -- end
-      -- vim.pretty_print("removing at ", edit.b_start, b:sub(edit.b_start, edit.b_start + edit.len - 1), b)
-      -- vim.pretty_print("sub", new_b:sub(1, edit.b_start - 1), new_b:sub(edit.b_start + edit.len))
       edits_to_remove[i] = true
       offset = offset + edit.len
     end
   end
   compact(edits, edits_to_remove)
-  -- TODO: there is totally a better way to do this but this seems good enough for now
-  -- local new_b_chars = vim.split(b, "")
-  -- compact(new_b_chars, b_chars_to_remove)
-  -- vim.pretty_print("rem", b_chars_to_remove)
   return edits
 end
 
 -- If at least half of the characters in a word have been changed,
 -- multiple edits will be combined into a single replacement edit.
--- This reduces the amount of highlights which may be confusing in the default Levenshtein provider.
+-- This reduces the amount of highlights which may be confusing when using
+-- the default Levenshtein provider.
 M.get_edits = function(a, b)
   local edits = provider.get_edits(a, b)
-  local orig_b = b
-  vim.pretty_print("orig", edits)
   if #edits == 1 then
     -- Nothing to merge
     return edits
@@ -144,14 +132,11 @@ M.get_edits = function(a, b)
 
   local char_pos_to_word, word_start_pos = get_char_pos_to_word(b)
   local edits_per_word, modified_chars_count = get_edits_per_word(splayed_edits, char_pos_to_word)
-  -- vim.pretty_print(edits_per_word, modified_chars_count)
 
   local words = vim.split(b, "%s+", { trimempty = true })
   for i = 1, #words do
-    -- vim.pretty_print("edits for i", i, edits_per_word[i])
     -- At least n / 2 characters must have changed for a merge
     local word_len = #words[i]
-    vim.pretty_print(edits_per_word[i], modified_chars_count[i], word_len, b)
     if
       edits_per_word[i]
       and #edits_per_word[i] > 1
@@ -159,32 +144,24 @@ M.get_edits = function(a, b)
       and modified_chars_count[i].modified_count + modified_chars_count[i].deleted_count > word_len / 2
     then
       local edit_pos = edits_per_word[i][1]
-      vim.pretty_print("splayed", splayed_edits[edit_pos])
       -- Create a new substitution edit spanning across all characters of the current word
       -- that have not been deleted and mark any existing deletion edits for removal
       local substitution_edit = {
         type = "substitution",
         a_start = word_start_pos[i],
-        -- TODO: don't use word_len, but length of consecutive edits starting at edit_pos(?)
         len = word_len - modified_chars_count[i].deleted_count,
         b_start = edits[edit_pos].b_start,
       }
-      -- if splayed_edits[edit_pos].type == "deletion" then
-      --   -- Start the substitution edit after the first deletion edit of the current word (if available)
-      --   vim.pretty_print("move by", splayed_edits[edit_pos].len, substitution_edit.b_start)
-      --   substitution_edit.b_start = substitution_edit.b_start - splayed_edits[edit_pos].len
-      -- end
 
       for _, edit in ipairs(edits_per_word[i]) do
-        -- Mark all deletion edits of the current word for removal
-        if edits[edit].type == "deletion" then
+        if edits[edit].type == "change" or edits[edit].type == "deletion" then
           edits[edit].remove = true
         end
       end
       table.insert(edits, edit_pos, substitution_edit)
     end
   end
-  return remove_marked_deletion_edits(edits, orig_b)
+  return remove_marked_deletion_edits(edits)
 end
 
 return M
