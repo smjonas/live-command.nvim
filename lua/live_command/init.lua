@@ -150,12 +150,13 @@ local function command_preview(opts, preview_ns, preview_buf)
   -- This reduces noise when a plugin modifies vim.v.errmsg (whether accidentally or not).
   local prev_errmsg = vim.v.errmsg
 
-  if range[1] == range[2] then
-    -- If the command is run on a single line, first move the cursor to the correct column manually
+-- Run the command and get the updated buffer contents
+  if opts.line1 == opts.line2 then
     if cursor_col ~= 0 then
-      vim.api.nvim_cmd({ cmd = "bufdo", args = { ("norm! 0%dl"):format(cursor_col) }, range = { scratch_buf } }, {})
+      -- If the command is run on a single line, first move the cursor to the correct column manually
+      run_buf_cmd(("norm! 0%dl"):format(cursor_col))
     end
-    run_buf_cmd("%s %s"):format(command.cmd, args)
+    run_buf_cmd(("%s %s"):format(command.cmd, args))
   else
     -- Map the command range to lines in the scratch buffer. E.g. if default range is 3,4
     -- and hl_range = { -1, 1, kind = "relative" }, then the scratch buffer will contain 4 lines.
@@ -257,6 +258,8 @@ local validate_config = function(config)
         command[opt] = command[opt] or M.defaults[opt]
       end
     end
+    -- TODO: use false as special value to disable deletions,
+    -- merge with default table
     vim.validate {
       cmd = { command.cmd, "string" },
       args = { command.args, "string", true },

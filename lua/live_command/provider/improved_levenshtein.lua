@@ -112,7 +112,7 @@ local function remove_marked_deletion_edits(edits)
 end
 
 -- If at least half of the characters in a word have been changed,
--- multiple edits will be combined into a single replacement edit.
+-- multiple edits will be combined into a single substitution edit.
 -- This reduces the amount of highlights which may be confusing when using
 -- the default Levenshtein provider.
 M.get_edits = function(a, b)
