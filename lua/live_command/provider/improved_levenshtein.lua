@@ -28,26 +28,29 @@ end
 
 local function get_edits_per_word(edits, splayed_edits, word_start_pos, words)
   local edits_per_word = {}
-  local modified_chars_count = {}
+  local edited_chars_count = {}
 
   -- Get a list of edits (their indices, to be precise) that changed each word
   -- and the number of characters modified in a word
   for i, word in ipairs(words) do
     for j, edit in ipairs(splayed_edits) do
-      local count_key = edit.type == "deletion" and "deleted_count" or "modified_count"
+      -- local count_key = edit.type == "deletion" and "deleted" or "modified"
       local overlap = math.max(
         0,
         math.min(word_start_pos[i] + #word, edit.b_start + edit.len) - math.max(word_start_pos[i], edit.b_start)
       )
 
       if overlap > 0 then
-        if not modified_chars_count[i] then
-          modified_chars_count[i] = {
-            deleted_count = 0,
-            modified_count = 0,
+        if not edited_chars_count[i] then
+          edited_chars_count[i] = {
+            insertion = 0,
+            change = 0,
+            deletion = 0,
+            total = 0,
           }
         end
-        modified_chars_count[i][count_key] = modified_chars_count[i][count_key] + overlap
+        edited_chars_count[i][edit.type] = edited_chars_count[i][edit.type] + overlap
+        edited_chars_count[i].total = edited_chars_count[i].total + overlap
       end
 
       if edit.b_start >= word_start_pos[i] then
@@ -64,7 +67,7 @@ local function get_edits_per_word(edits, splayed_edits, word_start_pos, words)
       end
     end
   end
-  return edits_per_word, modified_chars_count
+  return edits_per_word, edited_chars_count
 end
 
 -- Removes all gaps in the array (https://stackoverflow.com/a/53038524/10365305)
@@ -115,7 +118,7 @@ end
 -- multiple edits will be combined into a single substitution edit.
 -- This reduces the amount of highlights which may be confusing when using
 -- the default Levenshtein provider.
-M.get_edits = function(a, b)
+M.get_edits = function(a, b, should_substitute)
   local edits = provider.get_edits(a, b)
   if #edits == 1 then
     -- Nothing to merge
@@ -129,13 +132,12 @@ M.get_edits = function(a, b)
   local edits_per_word, modified_chars_count = get_edits_per_word(edits, splayed_edits, word_start_pos, words)
 
   for i = 1, #words do
-    -- At least n / 2 characters must have changed for a merge
+    -- TODO: edits_per_word does not need to be nested
     local word_len = #words[i]
     if
-      edits_per_word[i]
-      -- and #edits_per_word[i] > 1
-      and word_len > 2
-      and modified_chars_count[i].modified_count + modified_chars_count[i].deleted_count > word_len / 2
+      word_len > 1
+      and edits_per_word[i]
+      and should_substitute(words[i], edits_per_word[i], word_start_pos[i], modified_chars_count[i])
     then
       local edit_pos = edits_per_word[i][1]
       -- Create a new substitution edit spanning across all characters of the current word
@@ -143,7 +145,7 @@ M.get_edits = function(a, b)
       local substitution_edit = {
         type = "substitution",
         a_start = word_start_pos[i],
-        len = word_len - modified_chars_count[i].deleted_count,
+        len = word_len - modified_chars_count[i].deleted,
         b_start = edits[edit_pos].b_start,
       }
 

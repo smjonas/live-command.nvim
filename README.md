@@ -66,8 +66,9 @@ require("live_command").setup {
     enable_highlighting = true,
     hl_groups = {
       insertion = "DiffAdd",
-      replacement = "DiffChanged",
       deletion = "DiffDelete",
+      change = "DiffChanged",
+      substitution = "DiffChanged",
     },
     hl_range = { 0, 0, kind = "relative" },
   },
@@ -86,15 +87,13 @@ Whether highlights should be shown. If `false`, only text changes are shown.
 
 `hl_groups: table<string, string?>`
 
-Default: `{ insertion = "DiffAdd", change = "DiffChanged", deletion = "DiffDelete", substitution = "DiffChanged" }`
+Default: `{ insertion = "DiffAdd", deletion = "DiffDelete", change = "DiffChanged", substitution = "DiffChanged" }`
 
 A list of highlight groups per edit type (insertion, change, deletion or replacement) used for highlighting buffer changes.
 The value can be `nil` in which case no highlights will be shown for that type. If `hl_groups.deletion` is `nil`,
 deletion edits will not be undone which is otherwise done to make them visible.
 
-> :bulb: Difference between `change` and `substitution`: If a word (defined as a consecutive sequence of
-non-whitespace characters) is changed by multiple edits (e.g. multiple change edits in the middle part of a word),
-`live-command` may combine these edits into a single `substitution` edit spanning the entire word.
+> :bulb: Have a look at the documentation for `substitution_condition` to learn about the difference between `change` and `substitution`.
 
 ---
 
@@ -118,6 +117,25 @@ cursor position.
 To always use all buffer contents you can use `{ 1, -1, kind = "absolute" }`
 (lines are 1-based, negative values are counted from the end of the buffer).
 Be aware of potential performance issues when using this option though.
+
+---
+
+`should_substitute: table -> boolean`
+
+Default: `require("live_command").should_substitute`
+
+If a word (defined as a consecutive sequence of non-whitespace characters) is altered by multiple edits,
+`live-command` may merge these edits into a single `substitution` edit spanning the entire word.
+
+Whether a substitution is performed depends on the `should_substitute` function. It takes a table with the following keys as a parameter:
+`text: string, edits: table, b_start_pos: int, edited_chars_count: table` and must return `true` if the edits should be merged.
+The default behavior is as follows:
+- If there is only a single edit, create a substitution edit if the edit is in the middle of the word.
+- If there are multiple edits, create a substitution edit if at least `word_length / 2`
+  characters have been edited.
+
+See [init.lua](https://github.com/smjonas/live-command.nvim/blob/main/lua/live_command/init.lua#L4)
+for the default implementation.
 
 ---
 

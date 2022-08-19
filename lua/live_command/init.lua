@@ -1,6 +1,17 @@
 local M = {
   utils = nil,
   provider = nil,
+  should_substitute = function(word)
+    if #word.text == 2 then
+      return true
+    end
+    if #word.edits == 1 then
+      -- Merge when the single edit is in the center of the word
+      return word.edits[1].b_start ~= word.b_start_pos
+        or word.edits[1].b_start + word.edits[1].len ~= word.b_start_pos + #word.text
+    end
+    return word.edited_chars_count.total >= #word.text / 2
+  end,
 }
 
 M.defaults = {
@@ -11,6 +22,7 @@ M.defaults = {
     change = "DiffChanged",
     substitution = "DiffChanged",
   },
+  should_substitute = M.should_substitute,
   hl_range = { 0, 0, kind = "relative" },
 }
 
@@ -150,7 +162,7 @@ local function command_preview(opts, preview_ns, preview_buf)
   -- This reduces noise when a plugin modifies vim.v.errmsg (whether accidentally or not).
   local prev_errmsg = vim.v.errmsg
 
--- Run the command and get the updated buffer contents
+  -- Run the command and get the updated buffer contents
   if opts.line1 == opts.line2 then
     if cursor_col ~= 0 then
       -- If the command is run on a single line, first move the cursor to the correct column manually
