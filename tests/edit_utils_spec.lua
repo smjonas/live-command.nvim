@@ -58,7 +58,7 @@ describe("#undo Undo deletions", function()
     }, edits)
   end)
 
-  it("#kekl works for more complex deletion case", function()
+  it("works for more complex deletion case", function()
     local a = "line1X\nline2\nline3\nline4"
     local b = "line1\nline3"
     local edits = {

@@ -61,7 +61,6 @@ local function get_edits_per_word(edits, splayed_edits, word_start_pos, words)
         -- edits[j].len = edits[j].len - overlap
         edits[j].overlap = overlap
         edits[j].word_len = #word
-        vim.pretty_print("overlap of", overlap, "for ", edit, edits[j])
       end
     end
   end
@@ -93,14 +92,16 @@ local function remove_marked_deletion_edits(edits)
   local edits_to_remove = {}
   for i, edit in ipairs(edits) do
     -- Shift all edits to account for the deleted substring
-    edits[i].b_start = edit.b_start + offset
+    if edit.activate then
+      assert(edit.overlap and edit.overlap > 0)
+      edits[i].len = edit.len - edit.overlap
+      -- edits[i].b_start = edit.b_start - (edit.word_len - edit.overlap)
+    else
+      edits[i].b_start = edit.b_start - offset
+    end
     if edit.remove then
       edits_to_remove[i] = true
       offset = offset + edit.len
-    end
-    if edit.activate then
-      edits[i].len = edit.len - edit.overlap
-      edits[i].b_start = edit.b_start - (edit.word_len - edit.overlap)
     end
     edits[i].activate = nil
     edits[i].overlap = nil

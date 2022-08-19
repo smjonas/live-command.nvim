@@ -7,14 +7,10 @@ describe("Preview", function()
   end)
 
   describe("per line", function()
-    it("#kk works", function()
-      local set_line = mock(function(line_nr, line)
-        vim.pretty_print("called with", line_nr, line)
-      end)
-      local apply_highlight = mock(function(hl)
-        vim.pretty_print(hl)
-      end)
-      local cached_lines = { "Line 1 test", "Line 2", "Line", "Line" }
+    it("works", function()
+      local set_line = mock(function(line_nr, line) end)
+      local apply_highlight = mock(function(hl) end)
+      local cached_lines = { "Line 1", "Line 2", "Line", "Line" }
       local updated_lines = { "LRne", "LineI 2", "ne 3", "Line" }
 
       live_command._preview_per_line(
@@ -66,9 +62,8 @@ describe("Preview", function()
       }
     end)
 
-    it("#kk works when change / insertion is preceded by deletion", function()
+    it("works when change / insertion is preceded by deletion", function()
       local apply_highlight = mock(function(hl)
-        vim.pretty_print(hl)
       end)
       live_command._preview_per_line(
         { [[this 'word']] },
@@ -76,7 +71,6 @@ describe("Preview", function()
         { insertion = "I", change = "R", deletion = "D" },
         nil,
         function(x, y)
-          vim.pretty_print(x, y)
         end,
         apply_highlight
       )

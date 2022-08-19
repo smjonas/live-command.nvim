@@ -1,19 +1,16 @@
 local provider = require("live_command.provider.improved_levenshtein")
 
 describe("#lev Improved Levenshtein get_edits", function()
-  it("#works when deleting characters at start / end of a word", function()
-    -- Expected: 1-4, 6 / 1-6, 9,
-    -- 1. 6-4 == len + 1
-    -- 2. 9-6 == len + 1
+  it("when deleting characters at start / end of a word", function()
     local a, b = "ok  black ok", "ok  la okI"
     local edits = provider.get_edits(a, b)
     assert.are_same({
       { type = "substitution", a_start = 5, len = 2, b_start = 5 },
-      { type = "insertion", a_start = 12, len = 1, b_start = 13 },
+      { type = "insertion", a_start = 12, len = 1, b_start = 10 },
     }, edits)
   end)
 
-  it("#lel works when characters were inserted in the middle of a word", function()
+  it("works when characters were inserted in the middle of a word", function()
     local a, b = "ok  black ok", "k  la ok"
     local edits = provider.get_edits(a, b)
     assert.are_same({
@@ -22,12 +19,21 @@ describe("#lev Improved Levenshtein get_edits", function()
     }, edits)
   end)
 
-  it("#this shifts edits of following words", function()
+  it("shifts edits of following words (deletion)", function()
     local a, b = "this 'word'", "x"
     local edits = provider.get_edits(a, b)
     assert.are_same({
       { type = "substitution", a_start = 1, len = 1, b_start = 1 },
       { type = "deletion", a_start = 2, len = 7, b_start = 2 },
+    }, edits)
+  end)
+
+  it("#cur shifts edits of following words (insertion)", function()
+    local a, b = "local fn = vim.fn", "R fn = vim.fn,"
+    local edits = provider.get_edits(a, b)
+    assert.are_same({
+      { type = "substitution", a_start = 1, len = 1, b_start = 1 },
+      { type = "insertion", a_start = 17, len = 1, b_start = 14 },
     }, edits)
   end)
 

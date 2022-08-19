@@ -87,6 +87,16 @@ describe("Levenshtein get_edits", function()
     }, actual)
   end)
 
+  -- TODO: prioritize whole word edits
+  it("#skip works for mixed change and deletion", function()
+    local actual = provider.get_edits("Line 1 test", "LRne")
+    -- LRnXXXXXeXX
+    assert.are_same({
+      { type = "deletion", a_start = 1, b_start = 1, len = 2 },
+      { type = "insertion", a_start = 4, b_start = 3, len = 2 },
+    }, actual)
+  end)
+
   it("prioritizes consecutive edits of the same type", function()
     -- This used to yield a change, insertion, replacement
     local actual = provider.get_edits([['word']], [[new "word"]])

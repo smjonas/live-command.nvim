@@ -53,10 +53,20 @@ local function preview_per_line(cached_lns, updated_lns, hl_groups, set_lines, s
       M.utils.strip_common(cached_lns[line_nr], updated_lns[line_nr])
 
     local edits = M.provider.get_edits(a, b)
-    local line = updated_lns[line_nr]
-    -- Add back the deleted substrings
-    local suffix = skipped_columns_end > 0 and line:sub(#line - skipped_columns_end + 1) or ""
-    set_line(line_nr, line:sub(1, skipped_columns_start) .. b .. suffix)
+
+    if highlight_deletions then
+      local line = cached_lns[line_nr]
+      -- Add back the deleted substrings
+      local suffix = skipped_columns_end > 0 and line:sub(#line - skipped_columns_end + 1) or ""
+      local new_b
+      new_b = M.utils.undo_deletions(a, b, edits, { in_place = true })
+      set_line(line_nr, line:sub(1, skipped_columns_start) .. new_b .. suffix)
+    end
+    -- local line = updated_lns[line_nr]
+    -- -- Add back the deleted substrings
+    -- local suffix = skipped_columns_end > 0 and line:sub(#line - skipped_columns_end + 1) or ""
+    -- print("SUFFI",suffix)
+    -- set_line(line_nr, line:sub(1, skipped_columns_start) .. b .. suffix)
 
     for _, edit in ipairs(edits) do
       if hl_groups[edit.type] ~= nil then
@@ -140,25 +150,19 @@ local function command_preview(opts, preview_ns, preview_buf)
   -- This reduces noise when a plugin modifies vim.v.errmsg (whether accidentally or not).
   local prev_errmsg = vim.v.errmsg
 
-  local cmd_string
   if range[1] == range[2] then
-    vim.v.errmsg = vim.inspect(range)
     -- If the command is run on a single line, first move the cursor to the correct column manually
     if cursor_col ~= 0 then
       vim.api.nvim_cmd({ cmd = "bufdo", args = { ("norm! 0%dl"):format(cursor_col) }, range = { scratch_buf } }, {})
     end
-    cmd_string = ("%s %s"):format(command.cmd, args)
+    run_buf_cmd("%s %s"):format(command.cmd, args)
   else
-    vim.v.errmsg = vim.inspect(range)
     -- Map the command range to lines in the scratch buffer. E.g. if default range is 3,4
     -- and hl_range = { -1, 1, kind = "relative" }, then the scratch buffer will contain 4 lines.
     -- The 1-based range in the scratch buffer becomes 3-1=2,3 which are the lines the command is executed on.
     run_buf_cmd(("%d,%d%s %s"):format(opts.line1 - range[1], opts.line2 - range[1], command.cmd, args))
   end
-
-  -- Run the command and get the updated buffer contents
-  vim.api.nvim_cmd({ cmd = "bufdo", args = { cmd_string }, range = { scratch_buf } }, {})
-  -- vim.v.errmsg = prev_errmsg
+  vim.v.errmsg = prev_errmsg
 
   local updated_lines = vim.api.nvim_buf_get_lines(scratch_buf, 0, -1, false)
   vim.api.nvim_set_current_buf(bufnr)
@@ -188,7 +192,6 @@ local function command_preview(opts, preview_ns, preview_buf)
     end)
   else
     -- In the other case, it is more efficient to compute the distance per line
-    vim.v.errmsg = vim.inspect(cached_lines) .. "\n" .. vim.inspect(updated_lines)
     preview_per_line(cached_lines, updated_lines, command.hl_groups, set_lines, function(line_nr, line)
       vim.api.nvim_buf_set_lines(bufnr, line_nr - 1 + range[1], line_nr + range[1], false, { line })
     end, function(hl)
