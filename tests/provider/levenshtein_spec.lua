@@ -1,5 +1,4 @@
 local provider = require("live_command.provider.levenshtein")
-local utils = require("live_command.edit_utils")
 
 describe("Levenshtein edits provider", function()
   it("computes correct distance matrix", function()

@@ -1,4 +1,7 @@
 local live_command = require("live_command")
+local function default_should_substitute(word)
+  return word.edited_chars_count.total > #word.text / 2
+end
 
 describe("Preview", function()
   setup(function()
@@ -14,6 +17,7 @@ describe("Preview", function()
       local updated_lines = { "LRne", "LineI 2", "ne 3", "Line" }
 
       live_command._preview_per_line(
+        { should_substitute = default_should_substitute },
         cached_lines,
         updated_lines,
         { insertion = "I", change = "R", deletion = "D" },
@@ -63,15 +67,14 @@ describe("Preview", function()
     end)
 
     it("works when change / insertion is preceded by deletion", function()
-      local apply_highlight = mock(function(hl)
-      end)
+      local apply_highlight = mock(function(hl) end)
       live_command._preview_per_line(
+        { should_substitute = default_should_substitute },
         { [[this 'word']] },
         { [["word"]] },
         { insertion = "I", change = "R", deletion = "D" },
         nil,
-        function(x, y)
-        end,
+        function(x, y) end,
         apply_highlight
       )
 
@@ -106,6 +109,7 @@ describe("Preview", function()
       local updated_lines = { "LRne" }
 
       live_command._preview_per_line(
+        { should_substitute = default_should_substitute },
         cached_lines,
         updated_lines,
         { insertion = "I", change = "R", deletion = nil },
@@ -150,6 +154,7 @@ describe("Preview", function()
     }
 
     live_command._preview_across_lines(
+      { should_substitute = default_should_substitute },
       cached_lines,
       updated_lines,
       { insertion = "I", change = "R", deletion = "D" },

@@ -3,6 +3,26 @@ local M = {}
 local provider = require("live_command.provider.levenshtein")
 local utils = require("live_command.edit_utils")
 
+-- Removes all gaps in the array (https://stackoverflow.com/a/53038524/10365305)
+local function compact(arr, gaps)
+  local j = 1
+  local n = #arr
+
+  for i = 1, n do
+    if gaps[i] then
+      arr[i] = nil
+    else
+      -- Move i's kept value to j's position, if it's not already there.
+      if i ~= j then
+        arr[j] = arr[i]
+        arr[i] = nil
+      end
+      j = j + 1 -- Increment position of where we'll place the next kept value.
+    end
+  end
+  return arr
+end
+
 local function get_char_pos_to_word(b)
   local in_word
   local cur_word = 0
@@ -51,17 +71,16 @@ local function get_edits_per_word(edits, splayed_edits, word_start_pos, words)
         end
         edited_chars_count[i][edit.type] = edited_chars_count[i][edit.type] + overlap
         edited_chars_count[i].total = edited_chars_count[i].total + overlap
-      end
-
-      if edit.b_start >= word_start_pos[i] then
-        if edit.b_start + edit.len <= word_start_pos[i] + #word then
+        if overlap == edit.len then
           if not edits_per_word[i] then
             -- TODO: refactor with default_table
             edits_per_word[i] = {}
           end
           table.insert(edits_per_word[i], j)
         end
-        -- edits[j].len = edits[j].len - overlap
+      end
+
+      if edit.b_start >= word_start_pos[i] then
         edits[j].overlap = overlap
         edits[j].word_len = #word
       end
@@ -96,9 +115,7 @@ local function remove_marked_deletion_edits(edits)
   for i, edit in ipairs(edits) do
     -- Shift all edits to account for the deleted substring
     if edit.activate then
-      assert(edit.overlap and edit.overlap > 0)
       edits[i].len = edit.len - edit.overlap
-      -- edits[i].b_start = edit.b_start - (edit.word_len - edit.overlap)
     else
       edits[i].b_start = edit.b_start - offset
     end
@@ -129,15 +146,17 @@ M.get_edits = function(a, b, should_substitute)
 
   local char_pos_to_word, word_start_pos = get_char_pos_to_word(b)
   local words = vim.split(b, "%s+", { trimempty = true })
-  local edits_per_word, modified_chars_count = get_edits_per_word(edits, splayed_edits, word_start_pos, words)
+  local edits_per_word, edited_chars_count = get_edits_per_word(edits, splayed_edits, word_start_pos, words)
 
   for i = 1, #words do
     -- TODO: edits_per_word does not need to be nested
     local word_len = #words[i]
     if
-      word_len > 1
-      and edits_per_word[i]
-      and should_substitute(words[i], edits_per_word[i], word_start_pos[i], modified_chars_count[i])
+      edits_per_word[i]
+      and should_substitute {
+        text = words[i],
+        edited_chars_count = edited_chars_count[i],
+      }
     then
       local edit_pos = edits_per_word[i][1]
       -- Create a new substitution edit spanning across all characters of the current word
@@ -145,11 +164,11 @@ M.get_edits = function(a, b, should_substitute)
       local substitution_edit = {
         type = "substitution",
         a_start = word_start_pos[i],
-        len = word_len - modified_chars_count[i].deleted,
+        len = word_len - edited_chars_count[i].deletion,
         b_start = edits[edit_pos].b_start,
       }
 
-      for _, edit in ipairs(edits_per_word[i]) do
+      for _, edit in ipairs(edits_per_word[i] or {}) do
         if edits[edit].type == "change" or edits[edit].type == "deletion" then
           edits[edit].remove = true
         end

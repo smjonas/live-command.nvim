@@ -128,14 +128,9 @@ If a word (defined as a consecutive sequence of non-whitespace characters) is al
 `live-command` may merge these edits into a single `substitution` edit spanning the entire word.
 
 Whether a substitution is performed depends on the `should_substitute` function. It takes a table with the following keys as a parameter:
-`text: string, edits: table, b_start_pos: int, edited_chars_count: table` and must return `true` if the edits should be merged.
+`text: string, edits: table, start_pos: int, edited_chars_count: table` and must return `true` if the edits should be merged.
 The default behavior is as follows:
-- If there is only a single edit, create a substitution edit if the edit is in the middle of the word.
-- If there are multiple edits, create a substitution edit if at least `word_length / 2`
-  characters have been edited.
-
-See [init.lua](https://github.com/smjonas/live-command.nvim/blob/main/lua/live_command/init.lua#L4)
-for the default implementation.
+- Create a substitution edit if at least `word_length / 2` characters have been edited.
 
 ---
 

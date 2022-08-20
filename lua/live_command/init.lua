@@ -5,11 +5,6 @@ local M = {
     if #word.text == 2 then
       return true
     end
-    if #word.edits == 1 then
-      -- Merge when the single edit is in the center of the word
-      return word.edits[1].b_start ~= word.b_start_pos
-        or word.edits[1].b_start + word.edits[1].len ~= word.b_start_pos + #word.text
-    end
     return word.edited_chars_count.total >= #word.text / 2
   end,
 }
@@ -22,18 +17,18 @@ M.defaults = {
     change = "DiffChanged",
     substitution = "DiffChanged",
   },
-  should_substitute = M.should_substitute,
   hl_range = { 0, 0, kind = "relative" },
+  should_substitute = M.should_substitute,
 }
 
 local cursor_col, scratch_buf, cached_lines
 local prev_lazyredraw
 
-local function preview_across_lines(cached_lns, updated_lines, hl_groups, set_lines, apply_highlight_cb)
+local function preview_across_lines(command, cached_lns, updated_lines, hl_groups, set_lines, apply_highlight_cb)
   local a, b, skipped_lines_count = M.utils.strip_common_linewise(cached_lns, updated_lines)
   a = table.concat(a, "\n")
   b = table.concat(b, "\n")
-  local edits = M.provider.get_edits(a, b)
+  local edits = M.provider.get_edits(a, b, command.should_substitute)
   -- TODO: handle highlight_deletions
   b = M.utils.undo_deletions(a, b, edits, { in_place = true })
 
@@ -54,7 +49,7 @@ local function preview_across_lines(cached_lns, updated_lines, hl_groups, set_li
   end
 end
 
-local function preview_per_line(cached_lns, updated_lns, hl_groups, set_lines, set_line, apply_highlight_cb)
+local function preview_per_line(command, cached_lns, updated_lns, hl_groups, set_lines, set_line, apply_highlight_cb)
   local highlight_deletions = hl_groups["deletion"] ~= nil
   if not highlight_deletions then
     set_lines(updated_lns)
@@ -64,7 +59,7 @@ local function preview_per_line(cached_lns, updated_lns, hl_groups, set_lines, s
     local a, b, skipped_columns_start, skipped_columns_end =
       M.utils.strip_common(cached_lns[line_nr], updated_lns[line_nr])
 
-    local edits = M.provider.get_edits(a, b)
+    local edits = M.provider.get_edits(a, b, command.should_substitute)
 
     if highlight_deletions then
       local line = cached_lns[line_nr]
@@ -199,13 +194,13 @@ local function command_preview(opts, preview_ns, preview_buf)
   -- New lines were inserted or lines were deleted.
   -- In this case, we need to compute the distance across all lines.
   if #updated_lines ~= #cached_lines then
-    preview_across_lines(cached_lines, updated_lines, command.hl_groups, set_lines, function(hl)
+    preview_across_lines(command, cached_lines, updated_lines, command.hl_groups, set_lines, function(hl)
       hl.line = hl.line + range[1]
       apply_highlight(hl, hl.line - 1, bufnr, preview_ns)
     end)
   else
     -- In the other case, it is more efficient to compute the distance per line
-    preview_per_line(cached_lines, updated_lines, command.hl_groups, set_lines, function(line_nr, line)
+    preview_per_line(command, cached_lines, updated_lines, command.hl_groups, set_lines, function(line_nr, line)
       vim.api.nvim_buf_set_lines(bufnr, line_nr - 1 + range[1], line_nr + range[1], false, { line })
     end, function(hl)
       hl.line = hl.line + range[1]
@@ -261,7 +256,7 @@ local validate_config = function(config)
     defaults = { defaults, "table", true },
     commands = { config.commands, "table" },
   }
-  local possible_opts = { "enable_highlighting", "hl_groups", "hl_range" }
+  local possible_opts = { "enable_highlighting", "hl_groups", "hl_range", "should_substitute" }
   for _, command in pairs(config.commands) do
     for _, opt in ipairs(possible_opts) do
       if command[opt] == nil and defaults and defaults[opt] ~= nil then
@@ -278,6 +273,7 @@ local validate_config = function(config)
       ["command.enable_highlighting"] = { command.enable_highlighting, "boolean", true },
       ["command.hl_groups"] = { command.hl_groups, "table", true },
       ["command.hl_range"] = { command.hl_range, "table", true },
+      ["command.should_substitute"] = { command.should_substitute, "function", true },
     }
 
     if command.hl_range then
