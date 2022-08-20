@@ -1,6 +1,5 @@
 local M = {
   utils = nil,
-  provider = nil,
   should_substitute = function(word)
     if #word.text == 2 then
       return true
@@ -18,6 +17,7 @@ M.defaults = {
     substitution = "DiffChanged",
   },
   hl_range = { 0, 0, kind = "relative" },
+  edits_provider = "live_command.provider.improved_levenshtein",
   should_substitute = M.should_substitute,
 }
 
@@ -59,7 +59,7 @@ local function preview_per_line(command, cached_lns, updated_lns, hl_groups, set
     local a, b, skipped_columns_start, skipped_columns_end =
       M.utils.strip_common(cached_lns[line_nr], updated_lns[line_nr])
 
-    local edits = M.provider.get_edits(a, b, command.should_substitute)
+    local edits = require(command.edits_provider).get_edits(a, b, command.should_substitute)
 
     if highlight_deletions then
       local line = cached_lns[line_nr]
@@ -256,7 +256,7 @@ local validate_config = function(config)
     defaults = { defaults, "table", true },
     commands = { config.commands, "table" },
   }
-  local possible_opts = { "enable_highlighting", "hl_groups", "hl_range", "should_substitute" }
+  local possible_opts = { "enable_highlighting", "hl_groups", "hl_range", "edits_provider", "should_substitute" }
   for _, command in pairs(config.commands) do
     for _, opt in ipairs(possible_opts) do
       if command[opt] == nil and defaults and defaults[opt] ~= nil then
@@ -273,6 +273,7 @@ local validate_config = function(config)
       ["command.enable_highlighting"] = { command.enable_highlighting, "boolean", true },
       ["command.hl_groups"] = { command.hl_groups, "table", true },
       ["command.hl_range"] = { command.hl_range, "table", true },
+      ["command.edits_provider"] = { command.edits_provider, "string", true },
       ["command.should_substitute"] = { command.should_substitute, "function", true },
     }
 
@@ -313,7 +314,6 @@ M.setup = function(user_config)
     end),
   })
   M.utils = require("live_command.edit_utils")
-  M.provider = require("live_command.provider.improved_levenshtein")
 end
 
 return M

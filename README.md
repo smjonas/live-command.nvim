@@ -71,6 +71,8 @@ require("live_command").setup {
       substitution = "DiffChanged",
     },
     hl_range = { 0, 0, kind = "relative" },
+    edits_provider = "live_command.provider.improved_levenshtein",
+    should_substitute = require("live_command").should_substitute,
   },
 }
 ```
@@ -117,6 +119,20 @@ cursor position.
 To always use all buffer contents you can use `{ 1, -1, kind = "absolute" }`
 (lines are 1-based, negative values are counted from the end of the buffer).
 Be aware of potential performance issues when using this option though.
+
+---
+
+`edits_provider: string`
+
+Default: `"live_command.provider.improved_levenshtein"`
+
+The name of an edits provider module. This module must contain a function
+`get_edits(a, b)` which takes in two strings and returns a list of editing operations
+that turn the first string into the second one.
+An edit is a table `{ type: string, a_start: int, b_start: int, len: int }`
+where `type` is either `insertion`,`deletion`, `change`  or `substitution`
+and `a_start` / `b_start` are the 1-based (inclusive) starting positions where
+the edit begins in `a` / `b`, respectively.
 
 ---
 
