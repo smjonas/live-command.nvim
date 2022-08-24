@@ -1,20 +1,42 @@
 local utils = require("live_command.edit_utils")
 
-describe("Stripping common prefix and suffix", function()
-  it("works", function()
-    local new_a, new_b, new_start = utils.strip_common("xxxAyy", "xxxabcy")
-    assert.are_same("Ay", new_a)
-    assert.are_same("abc", new_b)
-    -- 0-indexed
-    assert.are_same(3, new_start)
+describe("Common prefix and suffix", function()
+  it("is stripped", function()
+    it("for common word", function()
+      local new_a, new_b, new_start = utils.strip_common("xxx Ayy", "xxx abcy")
+      assert.are_same("Ay", new_a)
+      assert.are_same("abc", new_b)
+      assert.are_same(3, new_start)
+    end)
+
+    it("when strings are equal", function()
+      local new_a, new_b, skipped_cols_start, skipped_cols_end = utils.strip_common("Word", "Word")
+      assert.are_same("", new_a)
+      assert.are_same("", new_b)
+      assert.are_same(4, skipped_cols_start)
+      assert.are_same(0, skipped_cols_end)
+    end)
+
+    it("linewise", function()
+      local a = { "Line 1", "X", "Line 2" }
+      local b = { "Line 1", "Line", "Line", "Line 2" }
+      local new_a, new_b, start_lines_count = utils.strip_common_linewise(a, b)
+      assert.are_same({ "X" }, new_a)
+      assert.are_same({ "Line", "Line" }, new_b)
+      -- Original tables should not change
+      assert.are_same({ "Line 1", "X", "Line 2" }, a)
+      assert.are_same({ "Line 1", "Line", "Line", "Line 2" }, b)
+      assert.are_same(1, start_lines_count)
+    end)
   end)
 
-  it("works when strings are equal", function()
-    local new_a, new_b, skipped_cols_start, skipped_cols_end = utils.strip_common("Word", "Word")
-    assert.are_same("", new_a)
-    assert.are_same("", new_b)
-    assert.are_same(4, skipped_cols_start)
-    assert.are_same(0, skipped_cols_end)
+  describe("is not stripped", function()
+    it("when common prefix is the same word", function()
+      local new_a, new_b, skipped_cols_start = utils.strip_common("xxxAyy", "xxxabcy")
+      assert.are_same("xxxAyy", new_a)
+      assert.are_same("xxxabcy", new_b)
+      assert.are_same(0, skipped_cols_start)
+    end)
   end)
 
   it("returns correct start_index when no common prefix or suffix", function()
@@ -22,18 +44,6 @@ describe("Stripping common prefix and suffix", function()
     assert.are_same("abc", new_a)
     assert.are_same("ABC", new_b)
     assert.are_same(0, new_start)
-  end)
-
-  it("linewise", function()
-    local a = { "Line 1", "X", "Line 2" }
-    local b = { "Line 1", "Line", "Line", "Line 2" }
-    local new_a, new_b, start_lines_count = utils.strip_common_linewise(a, b)
-    assert.are_same({ "X" }, new_a)
-    assert.are_same({ "Line", "Line" }, new_b)
-    -- Original tables should not change
-    assert.are_same({ "Line 1", "X", "Line 2" }, a)
-    assert.are_same({ "Line 1", "Line", "Line", "Line 2" }, b)
-    assert.are_same(1, start_lines_count)
   end)
 end)
 

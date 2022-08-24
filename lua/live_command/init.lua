@@ -50,7 +50,7 @@ local function preview_across_lines(command, cached_lns, updated_lines, hl_group
 end
 
 local function preview_per_line(command, cached_lns, updated_lns, hl_groups, set_lines, set_line, apply_highlight_cb)
-  local highlight_deletions = hl_groups["deletion"] ~= nil
+  local highlight_deletions = hl_groups["deletion"] ~= false
   if not highlight_deletions then
     set_lines(updated_lns)
   end
@@ -69,11 +69,6 @@ local function preview_per_line(command, cached_lns, updated_lns, hl_groups, set
       new_b = M.utils.undo_deletions(a, b, edits, { in_place = true })
       set_line(line_nr, line:sub(1, skipped_columns_start) .. new_b .. suffix)
     end
-    -- local line = updated_lns[line_nr]
-    -- -- Add back the deleted substrings
-    -- local suffix = skipped_columns_end > 0 and line:sub(#line - skipped_columns_end + 1) or ""
-    -- print("SUFFI",suffix)
-    -- set_line(line_nr, line:sub(1, skipped_columns_start) .. b .. suffix)
 
     for _, edit in ipairs(edits) do
       if hl_groups[edit.type] ~= nil then
@@ -265,8 +260,8 @@ local validate_config = function(config)
         command[opt] = command[opt] or M.defaults[opt]
       end
     end
-    -- TODO: use false as special value to disable deletions,
-    -- merge with default table
+    command.hl_groups = vim.tbl_deep_extend("force", {}, M.defaults.hl_groups, command.hl_groups)
+
     vim.validate {
       cmd = { command.cmd, "string" },
       args = { command.args, "string", true },

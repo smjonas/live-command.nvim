@@ -119,7 +119,7 @@ describe("Preview", function()
         command,
         cached_lines,
         updated_lines,
-        { insertion = "I", change = "R", deletion = nil },
+        { insertion = "I", change = "R", deletion = false },
         set_lines,
         set_line,
         apply_highlight
