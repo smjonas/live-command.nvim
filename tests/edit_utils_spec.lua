@@ -1,12 +1,13 @@
 local utils = require("live_command.edit_utils")
 
 describe("Common prefix and suffix", function()
-  it("is stripped", function()
+  describe("is stripped", function()
     it("for common word", function()
-      local new_a, new_b, new_start = utils.strip_common("xxx Ayy", "xxx abcy")
-      assert.are_same("Ay", new_a)
-      assert.are_same("abc", new_b)
-      assert.are_same(3, new_start)
+      local new_a, new_b, skipped_start, skipped_end = utils.strip_common("xxx Ayy", "xxx abcy")
+      -- assert.are_same("Ayy", new_a)
+      -- assert.are_same("abcy", new_b)
+      assert.are_same(4, skipped_start)
+      assert.are_same(0, skipped_end)
     end)
 
     it("when strings are equal", function()

@@ -28,12 +28,11 @@ local function preview_across_lines(command, cached_lns, updated_lines, hl_group
   local a, b, skipped_lines_count = M.utils.strip_common_linewise(cached_lns, updated_lines)
   a = table.concat(a, "\n")
   b = table.concat(b, "\n")
-  local edits = M.provider.get_edits(a, b, command.should_substitute)
-  -- TODO: handle highlight_deletions
-  b = M.utils.undo_deletions(a, b, edits, { in_place = true })
+  local edits = require(command.edits_provider).get_edits(a, b, command.should_substitute)
 
-  local keep_deletions = hl_groups["deletion"] == nil
-  if not keep_deletions then
+  local highlight_deletions = hl_groups["deletion"] ~= false
+  if highlight_deletions then
+    b = M.utils.undo_deletions(a, b, edits, { in_place = true })
     -- Undo deletion operations in all lines after the skipped ones
     for line_nr, line in ipairs(vim.split(b, "\n")) do
       updated_lines[skipped_lines_count + line_nr] = line
@@ -65,13 +64,12 @@ local function preview_per_line(command, cached_lns, updated_lns, hl_groups, set
       local line = cached_lns[line_nr]
       -- Add back the deleted substrings
       local suffix = skipped_columns_end > 0 and line:sub(#line - skipped_columns_end + 1) or ""
-      local new_b
-      new_b = M.utils.undo_deletions(a, b, edits, { in_place = true })
+      local new_b = M.utils.undo_deletions(a, b, edits, { in_place = true })
       set_line(line_nr, line:sub(1, skipped_columns_start) .. new_b .. suffix)
     end
 
     for _, edit in ipairs(edits) do
-      if hl_groups[edit.type] ~= nil then
+      if hl_groups[edit.type] ~= false then
         local start_col = edit.b_start
         local end_col = edit.b_start + edit.len - 1
         start_col = start_col + skipped_columns_start

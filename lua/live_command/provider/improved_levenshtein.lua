@@ -89,26 +89,6 @@ local function get_edits_per_word(edits, splayed_edits, word_start_pos, words)
   return edits_per_word, edited_chars_count
 end
 
--- Removes all gaps in the array (https://stackoverflow.com/a/53038524/10365305)
-local function compact(arr, gaps)
-  local j = 1
-  local n = #arr
-
-  for i = 1, n do
-    if gaps[i] then
-      arr[i] = nil
-    else
-      -- Move i's kept value to j's position, if it's not already there.
-      if i ~= j then
-        arr[j] = arr[i]
-        arr[i] = nil
-      end
-      j = j + 1 -- Increment position of where we'll place the next kept value.
-    end
-  end
-  return arr
-end
-
 local function remove_marked_deletion_edits(edits)
   local offset = 0
   local edits_to_remove = {}

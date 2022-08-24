@@ -8,12 +8,17 @@ M.strip_common = function(str_a, str_b)
     return "", "", len_a, 0
   end
 
+  -- Strip common words prefix
+  local safe_skipped_cols_start = 0
   local skipped_cols_start
-  -- Strip common prefix
+
   for i = 1, math.min(len_a, len_b) do
     if str_a:sub(i, i) == str_b:sub(i, i) then
-      skipped_cols_start = i
+      if str_a:sub(i, i):find("%s") then
+        safe_skipped_cols_start = i
+      end
     else
+      skipped_cols_start = safe_skipped_cols_start
       break
     end
   end
@@ -25,12 +30,18 @@ M.strip_common = function(str_a, str_b)
     len_b = len_b - skipped_cols_start
   end
 
-  -- Strip common suffix
+  -- Strip common words suffix
+  local safe_skipped_cols_end = 0
   local skipped_cols_end
+
   for i = 0, math.min(len_a, len_b) do
-    if str_a:sub(len_a - i, len_a - i) == str_b:sub(len_b - i, len_b - i) then
-      skipped_cols_end = i + 1
+    local char = str_a:sub(len_a - i, len_a - i)
+    if char == str_b:sub(len_b - i, len_b - i) then
+      if char:find("%s") then
+        safe_skipped_cols_end = i + 1
+      end
     else
+      skipped_cols_end = safe_skipped_cols_end
       break
     end
   end
