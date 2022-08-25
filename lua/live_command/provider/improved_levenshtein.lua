@@ -117,11 +117,8 @@ end
 -- the default Levenshtein provider.
 M.get_edits = function(a, b, should_substitute)
   local edits = provider.get_edits(a, b)
-  if #edits == 1 then
-    -- Nothing to merge
-    return edits
-  end
   local splayed_edits
+  local _, orig_word_start_pos = get_char_pos_to_word(b)
   b, splayed_edits = utils.undo_deletions(a, b, edits, { in_place = false })
 
   local char_pos_to_word, word_start_pos = get_char_pos_to_word(b)
@@ -131,12 +128,19 @@ M.get_edits = function(a, b, should_substitute)
   for i = 1, #words do
     -- TODO: edits_per_word does not need to be nested
     local word_len = #words[i]
-    if
-      edits_per_word[i]
-      and should_substitute {
+    if edits_per_word[i] then
+      local x = should_substitute {
         text = words[i],
         edited_chars_count = edited_chars_count[i],
       }
+      print("SHO", x, vim.inspect(edited_chars_count[i]))
+    end
+
+    if edits_per_word[i]
+        and should_substitute {
+          text = words[i],
+          edited_chars_count = edited_chars_count[i],
+        }
     then
       local edit_pos = edits_per_word[i][1]
       -- Create a new substitution edit spanning across all characters of the current word
@@ -145,7 +149,7 @@ M.get_edits = function(a, b, should_substitute)
         type = "substitution",
         a_start = word_start_pos[i],
         len = word_len - edited_chars_count[i].deletion,
-        b_start = edits[edit_pos].b_start,
+        b_start = orig_word_start_pos[i],
       }
 
       for _, edit in ipairs(edits_per_word[i] or {}) do

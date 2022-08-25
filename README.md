@@ -1,5 +1,7 @@
 # live-command.nvim
 
+screenkey --no-detach  -p fixed -g $(slop -n -f '%g') -t 1
+
 ![live_command_demo](https://user-images.githubusercontent.com/40792180/179546128-ad49096e-7301-4929-9b24-2b08996bdff2.gif)
 
 View the effects of any command on your buffer contents live. Preview macros, the `:norm` command & more!
