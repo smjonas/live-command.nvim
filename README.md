@@ -37,10 +37,10 @@ an existing command that is run on each keypress.
 
 Here is a list of available settings:
 
-| Key         | Type     | Description                                                                                                                                | Optional? |
-| ----------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------ | --------- |
-| cmd         | string   | The name of an existing command run in the preview callback.                                                                               | No        |
-| args        | string   | Arguments passed to the command. If `nil`, the arguments are supplied from the command-line while the user is typing the command.   | Yes       |
+| Key         | Type     | Description                                                                                                                          | Optional? |
+| ----------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------ | --------- |
+| cmd         | string   | The name of an existing command run in the preview callback.                                                                         | No        |
+| args        | string   | Arguments passed to the command. If `nil`, the arguments are supplied from the command-line while the user is typing the command.    | Yes       |
 
 ### Example
 The following example creates three `:Regx` commands where `x` is the name of a register (`a`, `b` or `c`).
@@ -87,13 +87,14 @@ Whether highlights should be shown. If `false`, only text changes are shown.
 
 ---
 
-`hl_groups: table<string, string?>`
+`hl_groups: table<string, string | boolean>`
 
 Default: `{ insertion = "DiffAdd", deletion = "DiffDelete", change = "DiffChanged", substitution = "DiffChanged" }`
 
 A list of highlight groups per edit type (insertion, change, deletion or replacement) used for highlighting buffer changes.
-The value can be `nil` in which case no highlights will be shown for that type. If `hl_groups.deletion` is `nil`,
-deletion edits will not be undone which is otherwise done to make them visible.
+The table will be merged with the defaults so you can omit any keys that are the same as the default value.
+If a value is set to `false`, no highlights will be shown for that type. If `hl_groups.deletion` is `false`,
+deletion edits will not be undone which otherwise happens to make them visible.
 
 > :bulb: Have a look at the documentation for `substitution_condition` to learn about the difference between `change` and `substitution`.
 
