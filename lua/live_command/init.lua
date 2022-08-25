@@ -96,7 +96,8 @@ local function make_range(hl_range, line1, line2)
     end
     return { hl_range[1] - 1, range[2] }
   elseif hl_range.kind == "relative" then
-    return { line1 - 1 + hl_range[1], line2 + hl_range[2] }
+    local line_count = vim.api.nvim_buf_line_count(0)
+    return { math.max(line1 - 1 + hl_range[1], 0), math.min(line2 + hl_range[2], line_count) }
   else
     -- kind == "visible"
     local first_line, last_line = vim.fn.line("w0"), vim.fn.line("w$")
