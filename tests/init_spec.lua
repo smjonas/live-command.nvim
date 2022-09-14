@@ -184,4 +184,18 @@ describe("Preview", function()
       hl_group = "D",
     }
   end)
+
+  it("#tax test", function()
+    local cached_lines = { "-- ' test" }
+    local updated_lines = { "--  test" }
+
+    live_command._preview_per_line(
+      command,
+      cached_lines,
+      updated_lines,
+      { insertion = "I", change = "R", deletion = "D" },
+      set_lines,
+      apply_highlight
+    )
+  end)
 end)

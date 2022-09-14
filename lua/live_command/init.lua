@@ -1,3 +1,4 @@
+-- " test
 local M = {
   utils = nil,
   should_substitute = function(word)
@@ -57,6 +58,7 @@ local function preview_per_line(command, cached_lns, updated_lns, hl_groups, set
   for line_nr = 1, #updated_lns do
     local a, b, skipped_columns_start, skipped_columns_end =
       M.utils.strip_common(cached_lns[line_nr], updated_lns[line_nr])
+    vim.v.errmsg = vim.v.errmsg .. "\n" .. skipped_columns_start .. "|" .. skipped_columns_end
 
     local edits = require(command.edits_provider).get_edits(a, b, command.should_substitute)
 
@@ -91,29 +93,6 @@ end
 M._preview_per_line = preview_per_line
 M._preview_across_lines = preview_across_lines
 
--- Returns a range as expected by vim.api.nvim_buf_get_lines.
-local function make_range(hl_range, line1, line2)
-  if hl_range.kind == "absolute" then
-    local range = { hl_range[1], hl_range[2] }
-    -- Wrap negative ranges
-    if range[1] < 0 then
-      local line_count = vim.api.nvim_buf_line_count(0)
-      range[1] = line_count + range[1] + 1
-    end
-    if range[2] < 0 then
-      local line_count = vim.api.nvim_buf_line_count(0)
-      range[2] = line_count + range[2] + 1
-    end
-    return { hl_range[1] - 1, range[2] }
-  elseif hl_range.kind == "relative" then
-    return { line1 - 1 + hl_range[1], line2 + hl_range[2] }
-  else
-    -- kind == "visible"
-    local first_line, last_line = vim.fn.line("w0"), vim.fn.line("w$")
-    return { first_line - 1, last_line }
-  end
-end
-
 local function apply_highlight(hl, line, bufnr, preview_ns)
   vim.api.nvim_buf_add_highlight(bufnr, preview_ns, hl.hl_group, line, hl.start_col - 1, hl.end_col)
 end
@@ -133,7 +112,8 @@ local function command_preview(opts, preview_ns, preview_buf)
   end
 
   local command = opts.command
-  local range = make_range(command.hl_range, opts.line1, opts.line2)
+  -- Currently visible lines
+  local range = { vim.fn.line("w0") - 1, vim.fn.line("w$") }
 
   local bufnr = vim.api.nvim_get_current_buf()
   if not scratch_buf then
@@ -166,10 +146,10 @@ local function command_preview(opts, preview_ns, preview_buf)
   vim.v.errmsg = prev_errmsg
 
   local updated_lines = vim.api.nvim_buf_get_lines(scratch_buf, 0, -1, false)
-  vim.api.nvim_set_current_buf(bufnr)
+  -- vim.api.nvim_set_current_buf(bufnr)
 
   local set_lines = function(lines)
-    vim.api.nvim_buf_set_lines(scratch_buf, range[1], range[2], false, lines)
+    -- vim.api.nvim_buf_set_lines(bufnr, range[1], range[2], false, lines)
     if preview_buf then
       vim.api.nvim_buf_set_lines(preview_buf, range[1], range[2], false, lines)
     end

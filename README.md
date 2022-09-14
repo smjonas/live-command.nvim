@@ -1,6 +1,11 @@
 # live-command.nvim
 
+- copy all visible lines
+- get offset lines, e.g. line1 = 5 => map to
+
 screenkey --no-detach  -p fixed -g $(slop -n -f '%g') -t 1
+Showcase command:
+`viB`, `:Norm i  wa = $x`
 
 ![live_command_demo](https://user-images.githubusercontent.com/40792180/179546128-ad49096e-7301-4929-9b24-2b08996bdff2.gif)
 

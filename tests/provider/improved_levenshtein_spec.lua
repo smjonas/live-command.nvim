@@ -22,6 +22,17 @@ describe("#lev Improved Levenshtein get_edits", function()
     }, edits)
   end)
 
+  it("#here works when characters were inserted in the middle of a word", function()
+    local a, b = "-- ' test", "-- test"
+    local edits = provider.get_edits(a, b, function()
+      return true
+    end)
+    assert.are_same({
+      { type = "deletion", a_start = 1, len = 1, b_start = 1 },
+      { type = "substitution", a_start = 5, len = 2, b_start = 4 },
+    }, edits)
+  end)
+
   it("#cur shifts edits of following words (deletion)", function()
     local a, b = "this 'word'", "x"
     local edits = provider.get_edits(a, b, should_substitute)
@@ -30,6 +41,7 @@ describe("#lev Improved Levenshtein get_edits", function()
       { type = "deletion", a_start = 2, len = 7, b_start = 2 },
     }, edits)
   end)
+-- this 'word'
 
   it("#cur shifts edits of following words (insertion)", function()
     local a, b = "local fn = vim.fn", "R fn = vim.fn,"
@@ -37,6 +49,14 @@ describe("#lev Improved Levenshtein get_edits", function()
     assert.are_same({
       { type = "substitution", a_start = 1, len = 1, b_start = 1 },
       { type = "insertion", a_start = 17, len = 1, b_start = 14 },
+    }, edits)
+  end)
+
+  it("does not merge when deleting whole word", function()
+    local a, b = [[x ]], [[ ]]
+    local edits = provider.get_edits(a, b, should_substitute)
+    assert.are_same({
+      { a_start = 1, b_start = 1, len = 1, type = "deletion" },
     }, edits)
   end)
 

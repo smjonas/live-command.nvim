@@ -1,6 +1,5 @@
 local M = {}
 
-
 local function update_edits(edit_type, cur_edit, a_start, b_start, edits)
   if cur_edit.type == edit_type and (cur_edit.a_start == a_start + 1 or cur_edit.b_start == b_start + 1) then
     -- Extend the edit
@@ -70,14 +69,17 @@ M.get_edits = function(a, b)
   end
 
   local function do_change()
+    print("CHANGE at ", col, b:sub(col, col))
     cur_edit = update_edits("change", cur_edit, row, col, edits)
     row = row - 1
   end
 
   while row > 0 and col > 0 do
+    vim.pretty_print("R=", row, "C=", col)
     if a:sub(row, row) ~= b:sub(col, col) then
       local can_delete = matrix[row - 1][col] <= matrix[row][col - 1]
         and matrix[row - 1][col] <= matrix[row - 1][col - 1]
+      print(can_delete)
 
       -- There was no previous edit
       if not cur_edit.type then
@@ -105,17 +107,21 @@ M.get_edits = function(a, b)
           end
         end
       end
+      vim.pretty_print(cur_edit)
     else
       row = row - 1
     end
     col = col - 1
   end
+  print(row, col)
 
   if col > 0 then
     table.insert(edits, 1, { type = "insertion", a_start = 1, b_start = row + 1, len = col })
   elseif row > 0 then
     table.insert(edits, 1, { type = "deletion", a_start = 1, b_start = col + 1, len = row })
   end
+  vim.pretty_print(edits[#edits])
+  vim.pretty_print(matrix)
   return edits, matrix
 end
 

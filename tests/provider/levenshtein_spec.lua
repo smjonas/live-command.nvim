@@ -55,12 +55,14 @@ describe("Levenshtein get_edits", function()
     }, actual)
   end)
 
-  -- it("prefers right positions when deleting multiple identical characters in a row", function()
-  --   local actual = cmd_preview._get_edits("abcccce", "abcce")
-  --   assert.are_same({
-  --     { type = "deletion", a_start = 5, a_end = 6, b_start = 5 },
-  --   }, actual)
-  -- end)
+  it("#xx prefers right positions when deleting multiple identical characters in a row", function()
+    local actual, m = provider.get_edits("ab", "ba")
+    assert.are_same({}, actual)
+    assert.are_same({}, m)
+    -- assert.are_same({
+    --   { type = "deletion", a_start = 5, a_end = 6, b_start = 5 },
+    -- }, actual)
+  end)
 
   it("works for deletion within word", function()
     local actual = provider.get_edits("abcde", "d")
@@ -84,6 +86,16 @@ describe("Levenshtein get_edits", function()
       { type = "deletion", a_start = 1, b_start = 1, len = 2 },
       { type = "insertion", a_start = 4, b_start = 3, len = 2 },
     }, actual)
+  end)
+
+  -- TODO: CONTINUE!
+  it("#def works for mixed edits", function()
+    local edits = provider.get_edits("test word;", "  test = word")
+    assert.are_same({
+      { a_start = 1, b_start = 1, len = 2, type = "insertion" },
+      { a_start = 5, b_start = 7, len = 1, type = "deletion" },
+      { a_start = 1, b_start = 1, len = 1, type = "deletion" },
+    }, edits)
   end)
 
   -- TODO: prioritize whole word edits
