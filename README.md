@@ -1,19 +1,26 @@
 # live-command.nvim
+![version](https://img.shields.io/badge/version-1.0.0-brightgreen)
 
-![live_command_demo](https://user-images.githubusercontent.com/40792180/179546128-ad49096e-7301-4929-9b24-2b08996bdff2.gif)
+Text editing in Neovim with immediate visual feedback: view the effects of any command on your buffer contents live. Preview macros, the `:norm` command & more!
 
-View the effects of any command on your buffer contents live. Preview macros, the `:norm` command & more!
+<div align="center">
+  <video alt="lel" src="https://user-images.githubusercontent.com/40792180/194180320-691efe71-0743-40e5-b0d7-454f142a9235.mp4"></video>
+</div>
+<p><sub>Theme: <a href="https://github.com/folke/tokyonight.nvim">tokyonight.nvim</a></sub></p>
 
-> :warning: This plugin is still in development and breaking changes may occur without prior announcement.
+## :sparkles: Motivation and Features
+In version 0.8, Neovim has introduced the `command-preview` feature.
+Contrary to what "command preview" suggests, previewing any given
+command does not work out of the box: you need to manually update the buffer text and set
+highlights *for every command*.
 
-## Goals and Features
-- Provide a very simple interface for creating previewable commands in Neovim
-- Smart highlighting based on the Levenshtein distance algorithm (with lots of performance
-  improvements and tweaks to get better highlights!)
-- View individual insertions, replacements and deletions
+This plugin tries to change that: it provides a **simple API for creating previewable commands**
+in Neovim. Just specify the command you want to run and live-command will do all the
+work for you. This includes viewing **individual insertions, changes and deletions** as you
+type.
 
 ## Requirements
-Neovim nightly (0.8).
+Neovim 0.8+
 
 ## :rocket: Getting started
 Install using your favorite package manager and call the setup function with a table of
@@ -21,8 +28,10 @@ commands to create. Here is an example that creates a previewable `:Norm` comman
 ```lua
 use {
   "smjonas/live-command.nvim",
+  -- live-command supports semantic versioning via tags
+  -- tag = "1.*",
   config = function()
-    require("live_command").setup {
+    require("live-command").setup {
       commands = {
         Norm = { cmd = "norm" },
       },
@@ -37,39 +46,46 @@ an existing command that is run on each keypress.
 
 Here is a list of available settings:
 
-| Key         | Type     | Description                                                                                                                                | Optional? |
-| ----------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------ | --------- |
-| cmd         | string   | The name of an existing command run in the preview callback.                                                                               | No        |
-| args        | string   | Arguments passed to the command. If `nil`, the arguments are supplied from the command-line while the user is typing the command.   | Yes       |
+| Key         | Type     | Description
+| ----------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------
+| cmd         | string   | The name of an existing command to preview.
+| args        | string? \| function(arg: string?, opts: table) -> string | Arguments passed to the command. If a function, takes in the options passed to the command and must return the transformed argument(s) `cmd` will be called with. `opts` has the same structure as the `opts` table passed to the `nvim_create_user_command` callback function. If `nil`, the arguments are supplied from the command-line while the user is typing the command.
+| range       | string?  | The range to prepend to the command. Set this to `""` if you don't want the new command to receive a count, e.g. when turning `:9Reg a` into `:norm 9@a`. If `nil`, the range will be supplied from the command entered. 
 
 ### Example
-The following example creates three `:Regx` commands where `x` is the name of a register (`a`, `b` or `c`).
-These commands can be used to preview macros.
+The following example creates a `:Reg` command which allows you to preview the effects of macros (e.g. `:5Reg a` to run macro `a` five times).
 ```lua
-local commands = {}
-for _, register in ipairs { "a", "b", "c" } do
-  commands["Reg" .. register] = { cmd = "norm", args = "@" .. register }
-end
+local commands = {
+  Reg = {
+    cmd = "norm",
+    -- This will transform ":5Reg a" into ":norm 5@a"
+    args = function(opts)
+      return (opts.count == -1 and "" or opts.count) .. "@" .. opts.args
+    end,
+    range = "",
+  },
+}
 
-require("live_command").setup {
+require("live-command").setup {
   commands = commands,
 }
 ```
 \
-All of the following options can be set globally (for all created commands), or per individual command.
+All of the following options can be set globally (for all created commands), or per command.
 
 To change the default options globally, use the `defaults` table. The defaults are:
 
 ```lua
-require("live_command").setup {
+require("live-command").setup {
   defaults = {
     enable_highlighting = true,
+    inline_highlighting = true,
     hl_groups = {
       insertion = "DiffAdd",
-      replacement = "DiffChanged",
       deletion = "DiffDelete",
+      change = "DiffChange",
     },
-    hl_range = { 0, 0, kind = "relative" },
+    debug = false,
   },
 }
 ```
@@ -84,36 +100,33 @@ Whether highlights should be shown. If `false`, only text changes are shown.
 
 ---
 
-`hl_groups: table<string, string?>`
+`inline_highlighting: boolean`
 
-Default: `{ insertion = "DiffAdd", replacement = "DiffChanged", deletion = "DiffDelete" }`
+Default: `true`
 
-A list of highlight groups per edit type (insertion, replacement or deletion) used for highlighting buffer changes.
-The value can be `nil` in which case no highlights will be shown for that type. If `hl_groups.deletion` is `nil`,
-deletion edits will not be undone which is otherwise done to make them visible.
+If `true`, differing lines will be compared in a second run of the diff algorithm. This
+can result in multiple highlights per line. Otherwise, the whole line will be highlighted as
+a single change highlight.
 
 ---
 
-`hl_range: table`
+`hl_groups: table<string, string|boolean>`
 
-Default: `{ 0, 0, kind = "relative" }`
+Default: `{ insertion = "DiffAdd", deletion = "DiffDelete", change = "DiffChange" }`
 
-Determines the line range the command is executed on to calculate the highlights.
-By default, if you run a command like `42Norm dsb`, changes to buffer lines outside the
-given range (here: `42,42`) will not be previewed for performance reasons.
+A list of highlight groups per edit type (insertion, deletion or change) used for highlighting buffer changes.
+The table will be merged with the defaults so you can omit any keys that are the same as the default.
+If a value is set to `false`, no highlights will be shown for that type. If `hl_groups.deletion` is `false`,
+deletion edits will not be undone which is otherwise done to make the text changes visible.
 
-For certain commands that operate on surrounding lines (such as `dsb`),
-it makes sense to increase this range. Use `{ kind = "visible" }` to make the diff
-algorithm use all lines that are visible in the current buffer. Tradeoff: this may sometimes be inaccurate
-because lines beyond the visible area are affected.
+---
 
-For even more fine-tuned control over the lines there is the `"relative"` kind:
-`{ -20, 20, kind = "relative" }` will include the previous / next 20 lines relative to the current
-cursor position.
+`debug: boolean`
 
-To always use all buffer contents you can use `{ 1, -1, kind = "absolute" }`
-(lines are 1-based, negative values are counted from the end of the buffer).
-Be aware of potential performance issues when using this option though.
+Default: `false`
+
+If `true`, more stuff (not only errors) will be logged. After previewing a command,
+you can view the log by running `:LiveCommandLog`.
 
 ---
 
