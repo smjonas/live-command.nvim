@@ -1,10 +1,10 @@
 # live-command.nvim
-![version](https://img.shields.io/badge/version-1.0.0-brightgreen)
+![version](https://img.shields.io/badge/version-1.1.0-brightgreen)
 
 Text editing in Neovim with immediate visual feedback: view the effects of any command on your buffer contents live. Preview macros, the `:norm` command & more!
 
 <div align="center">
-  <video alt="lel" src="https://user-images.githubusercontent.com/40792180/194180320-691efe71-0743-40e5-b0d7-454f142a9235.mp4"></video>
+  <video alt="live-command demo video" src="https://user-images.githubusercontent.com/40792180/194180320-691efe71-0743-40e5-b0d7-454f142a9235.mp4"></video>
 </div>
 <p><sub>Theme: <a href="https://github.com/folke/tokyonight.nvim">tokyonight.nvim</a></sub></p>
 
@@ -85,8 +85,8 @@ require("live-command").setup {
       deletion = "DiffDelete",
       change = "DiffChange",
     },
-    debug = false,
   },
+  debug = false,
 }
 ```
 
