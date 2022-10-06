@@ -8,10 +8,7 @@ M.defaults = {
     deletion = "DiffDelete",
     change = "DiffChange",
   },
-  debug = false,
 }
-
-local debug = false
 
 local should_cache_lines = true
 local cached_lines
@@ -20,7 +17,7 @@ local prev_lazyredraw
 local logs = {}
 local function log(msg, level)
   level = level or "TRACE"
-  if debug or level ~= "TRACE" then
+  if M.debug or level ~= "TRACE" then
     msg = type(msg) == "function" and msg() or msg
     logs[level] = logs[level] or {}
     for _, line in ipairs(vim.split(msg .. "\n", "\n")) do
@@ -341,7 +338,6 @@ M.setup = function(user_config)
     return
   end
 
-  -- assert(false, vim.inspect(user_config))
   local config = vim.tbl_deep_extend("force", M.defaults, user_config or {})
   validate_config(config)
   create_user_commands(config.commands)
@@ -356,7 +352,7 @@ M.setup = function(user_config)
     end),
   })
 
-  debug = config.defaults.debug
+  M.debug = user_config.debug
 
   vim.api.nvim_create_user_command("LiveCommandLog", function()
     local msg = ("live-command log\n================\n\n%s%s"):format(
@@ -367,6 +363,6 @@ M.setup = function(user_config)
   end, { nargs = 0 })
 end
 
-M.version = "1.0.0"
+M.version = "1.1.0"
 
 return M
