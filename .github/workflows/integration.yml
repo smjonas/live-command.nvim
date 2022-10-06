@@ -1,0 +1,24 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+
+jobs:
+  luacheck:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Luacheck
+        uses: lunarmodules/luacheck@v1.0.0
+
+  stylua:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: JohnnyMorganz/stylua-action@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          args: --color always --check lua/
