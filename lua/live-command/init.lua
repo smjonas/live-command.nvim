@@ -39,6 +39,11 @@ local function splice(s)
   return table.concat(chars)
 end
 
+-- Inserts str_2 into str_1 at the given position.
+local function string_insert(str_1, str_2, pos)
+  return str_1:sub(1, pos - 1) .. str_2 .. str_1:sub(pos)
+end
+
 local unpack = table.unpack or unpack
 
 local function add_inline_highlights(line, cached_lns, updated_lines, undo_deletions, highlights)
@@ -56,25 +61,35 @@ local function add_inline_highlights(line, cached_lns, updated_lines, undo_delet
     )
   end)
 
+  local col_offset = 0
   for _, line_hunk in ipairs(line_diff) do
     local start_a, count_a, start_b, count_b = unpack(line_hunk)
     local hunk_kind = (count_a == 0 and "insertion") or (count_b == 0 and "deletion") or "change"
 
+    local deleted_part
     if hunk_kind == "deletion" and undo_deletions then
-      -- Some characters were deleted within the line, restore original line
-      updated_lines[line] = cached_lines[line]
+      deleted_part = cached_lines[line]:sub(start_a, start_a + count_a - 1)
+      -- Restore deleted characters
+      updated_lines[line] = string_insert(updated_lines[line], deleted_part, start_a)
     end
 
     if hunk_kind ~= "deletion" or undo_deletions then
       table.insert(highlights, {
         kind = hunk_kind,
         line = line,
-        column = (hunk_kind == "deletion") and start_a or start_b,
+        column = col_offset + ((hunk_kind == "deletion") and start_a or start_b),
         length = (hunk_kind == "deletion") and count_a or count_b,
       })
     end
+
+    if deleted_part then
+      col_offset = col_offset + #deleted_part
+    end
   end
 end
+
+-- Expose function to tests
+M._add_inline_highlights = add_inline_highlights
 
 local function get_diff_highlights(cached_lns, updated_lines, line_range, opts)
   local highlights = {}
@@ -180,27 +195,22 @@ local function command_preview(opts, preview_ns, preview_buf)
     should_cache_lines = false
   end
 
-  -- log("CUR LINE: " .. vim.inspect(vim.api.nvim_win_get_cursor(0)))
-
   -- Ignore any errors that occur while running the command.
   -- This reduces noise when a plugin modifies vim.v.errmsg (whether accidentally or not).
   local prev_errmsg = vim.v.errmsg
-  local visible_line_range = { vim.fn.line("w0") }
+  local visible_line_range = { vim.fn.line("w0"), vim.fn.line("w$") }
 
   if opts.line1 == opts.line2 then
     run_buf_cmd(bufnr, ("%s %s"):format(command.cmd, args))
   else
     run_buf_cmd(bufnr, ("%d,%d%s %s"):format(opts.line1, opts.line2, command.cmd, args))
   end
-  -- log("LINE after running cmd: " .. vim.inspect(vim.api.nvim_win_get_cursor(0)))
-  -- log("RANGE after running cmd: " .. vim.inspect(new_line_range))
 
   vim.v.errmsg = prev_errmsg
   local updated_lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+  visible_line_range[2] = math.max(visible_line_range[2], vim.fn.line("w$"))
   -- Adjust end to account for potentially newly inserted lines
-  visible_line_range[2] = vim.fn.line("w$") + math.max(0, #updated_lines - #cached_lines)
-  local new_range = vim.fn.line("w$")
-  log("NEW RANGE" .. new_range)
+  visible_line_range[2] = visible_line_range[2] + math.max(visible_line_range[2], vim.fn.line("w$"))
 
   local set_lines = function(lines)
     -- TODO: is this worth optimizing?
