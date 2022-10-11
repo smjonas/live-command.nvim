@@ -1,5 +1,5 @@
 # live-command.nvim
-![version](https://img.shields.io/badge/version-1.1.1-brightgreen)
+![version](https://img.shields.io/badge/version-1.1.2-brightgreen)
 
 Text editing in Neovim with immediate visual feedback: view the effects of any command on your buffer contents live. Preview macros, the `:norm` command & more!
 
