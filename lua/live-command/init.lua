@@ -152,6 +152,10 @@ local function get_diff_highlights(cached_lns, updated_lines, line_range, opts)
             -- Hunk was deleted: reinsert lines
             table.insert(updated_lines, line, cached_lns[line])
           end
+          if updated_lines[line] == "" then
+            -- Make empty lines visible
+            updated_lines[line] = " "
+          end
           table.insert(highlights, { kind = hunk_kind, line = line, column = 1, length = -1 })
         end
       end
@@ -378,6 +382,6 @@ M.setup = function(user_config)
   end, { nargs = 0 })
 end
 
-M.version = "1.1.2"
+M.version = "1.2.0"
 
 return M
