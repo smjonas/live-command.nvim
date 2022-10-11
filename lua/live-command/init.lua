@@ -55,10 +55,12 @@ local function add_inline_highlights(line, cached_lns, updated_lines, undo_delet
   local cached_line = cached_lns[line]
   local updated_line = {}
 
+  local current_char = 0
   local col_offset = 0
   local last_hunk = { end_a = 0 }
 
   for i, line_hunk in ipairs(line_diff) do
+    -- print(vim.inspect(line_hunk))
     local start_a, count_a, start_b, count_b = unpack(line_hunk)
     local end_a, end_b = start_a + count_a - 1, start_b + count_b - 1
     local hunk_kind = (count_a == 0 and "insertion") or (count_b == 0 and "deletion") or "change"
@@ -70,11 +72,13 @@ local function add_inline_highlights(line, cached_lns, updated_lines, undo_delet
       if undo_deletions and hunk_kind == "deletion" then
         -- Restore deleted characters
         table.insert(updated_line, cached_lns[line]:sub(start_a, end_a))
+        current_char = current_char + count_a
         -- col_delta = count_a
       elseif hunk_kind == "change" then
         -- Restore characters removed by change
         table.insert(updated_line, updated_lines[line]:sub(start_b, end_b))
         col_delta = -(count_a - count_b)
+        current_char = current_char + col_delta
       end
     end
 
@@ -85,10 +89,19 @@ local function add_inline_highlights(line, cached_lns, updated_lines, undo_delet
         column = col_offset + ((hunk_kind == "deletion") and start_a or start_b),
         length = (hunk_kind == "deletion") and count_a or count_b,
       }
+
       if start_a > last_hunk.end_a + 1 then
         -- There is a gap between the last hunk and the current one, add the text inbetween
         local unchanged_part = cached_line:sub(last_hunk.end_a + 1, start_a - (hunk_kind ~= "insertion" and 1 or 0))
         table.insert(updated_line, #updated_line, unchanged_part)
+        current_char = current_char + #unchanged_part
+      end
+
+      if hunk_kind == "insertion" then
+        highlight.column = current_char + 1
+        -- print("CC" .. current_char)
+        current_char = current_char + count_b
+        --   print("set " .. highlight.column)
       end
 
       table.insert(highlights, highlight)
@@ -382,6 +395,6 @@ M.setup = function(user_config)
   end, { nargs = 0 })
 end
 
-M.version = "1.2.0"
+M.version = "1.2.1"
 
 return M
