@@ -13,7 +13,7 @@ describe("inline_highlights", function()
     assert.are_same({ "new word" }, updated_lines)
   end)
 
-  it("insertions 1", function()
+  it("#lel insertions", function()
     local highlights = {}
     local updated_lines = { "new word new" }
     live_command._add_inline_highlights(1, { "word" }, updated_lines, true, highlights)
@@ -25,19 +25,7 @@ describe("inline_highlights", function()
     assert.are_same({ "new word new" }, updated_lines)
   end)
 
-  it("insertions 2", function()
-    local highlights = {}
-    local updated_lines = { "new word new" }
-    live_command._add_inline_highlights(1, { "word" }, updated_lines, true, highlights)
-
-    assert.are_same({
-      { kind = "insertion", line = 1, column = 1, length = 4 },
-      { kind = "insertion", line = 1, column = 9, length = 4 },
-    }, highlights)
-    assert.are_same({ "new word new" }, updated_lines)
-  end)
-
-  it("insertions + deletion", function()
+  it("#kek insertions + deletion", function()
     local highlights = {}
     local updated_lines = { "test1" }
     live_command._add_inline_highlights(1, { "a test" }, updated_lines, true, highlights)
@@ -60,6 +48,19 @@ describe("inline_highlights", function()
     assert.are_same({ "      x.insert" }, updated_lines)
   end)
 
+  it("#h change should not use negative column values", function()
+    local highlights = {}
+    local updated_lines = { "tes" }
+    live_command._add_inline_highlights(1, { "line" }, updated_lines, true, highlights)
+
+    assert.are_same({
+      { kind = "change", line = 1, column = 1, length = 1 },
+      { kind = "insertion", line = 1, column = 3, length = 1 },
+    }, highlights)
+    assert.are_same({ "tes" }, updated_lines)
+  end)
+
+  -- TODO: create the same test but when undo_deletions = false
   it("change + deletion", function()
     local highlights = {}
     local updated_lines = { "lel" }
