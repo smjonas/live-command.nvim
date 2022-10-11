@@ -197,10 +197,6 @@ local function command_preview(opts, preview_ns, preview_buf)
   vim.v.errmsg = ""
   logs = {}
   local args = opts.cmd_args
-  if args:find("^%s*$") then
-    return
-  end
-
   local command = opts.command
 
   local bufnr = vim.api.nvim_get_current_buf()
@@ -382,6 +378,6 @@ M.setup = function(user_config)
   end, { nargs = 0 })
 end
 
-M.version = "1.1.1"
+M.version = "1.1.2"
 
 return M
