@@ -236,11 +236,13 @@ local function command_preview(opts, preview_ns, preview_buf)
   end
 
   vim.v.errmsg = prev_errmsg
-  local updated_lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
-  visible_line_range[2] = math.max(visible_line_range[2], vim.fn.line("w$"))
-  -- Adjust end to account for potentially newly inserted lines
-  visible_line_range[2] = visible_line_range[2] + math.max(visible_line_range[2], vim.fn.line("w$"))
+  -- Adjust range to account for potentially inserted lines / scroll
+  visible_line_range = {
+    math.max(visible_line_range[1], vim.fn.line("w0")),
+    math.max(visible_line_range[2], vim.fn.line("w$")),
+  }
 
+  local updated_lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
   local set_lines = function(lines)
     -- TODO: is this worth optimizing?
     vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
