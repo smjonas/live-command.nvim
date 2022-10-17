@@ -58,45 +58,39 @@ local function add_inline_highlights(line, cached_lns, updated_lines, undo_delet
     )
   end)
 
+  local defer
+  local col_offset = 0
   for _, line_hunk in ipairs(line_diff) do
-    local _, count_a, start_b, count_b = unpack(line_hunk)
+    local start_a, count_a, start_b, count_b = unpack(line_hunk)
     local hunk_kind = (count_a == 0 and "insertion") or (count_b == 0 and "deletion") or "change"
 
     if hunk_kind ~= "deletion" or undo_deletions then
-      table.insert(highlights, {
+      local highlight = {
         hunk = line_hunk,
         kind = hunk_kind,
         line = line,
         -- Add 1 because when count is zero, start_b / start_b is the position before the deletion
         column = (hunk_kind == "deletion") and start_b + 1 or start_b,
         length = (hunk_kind == "deletion") and count_a or count_b,
-      })
-    end
-  end
+      }
 
-  local defer
-  local col_offset = 0
-  for _, highlight in ipairs(highlights) do
-    local start_a, count_a, start_b, _ = unpack(highlight.hunk)
-
-    if highlight.kind == "deletion" and undo_deletions then
-      local deleted_part = cached_lns[line]:sub(start_a, start_a + count_a - 1)
-      -- Restore deleted characters
-      updated_lines[line] = string_insert(updated_lines[line], deleted_part, col_offset + start_b + 1)
-      defer = function()
-        col_offset = col_offset + #deleted_part
+      if highlight.kind == "deletion" and undo_deletions then
+        local deleted_part = cached_lns[line]:sub(start_a, start_a + count_a - 1)
+        -- Restore deleted characters
+        updated_lines[line] = string_insert(updated_lines[line], deleted_part, col_offset + start_b + 1)
+        defer = function()
+          col_offset = col_offset + #deleted_part
+        end
       end
-    end
-    -- Observation: when changing "line" to "tes", there should not be an offset (-2)
-    -- after changing "lin" to "t" (because we are not modifying the line)
+      -- Observation: when changing "line" to "tes", there should not be an offset (-2)
+      -- after changing "lin" to "t" (because we are not modifying the line)
+      highlight.column = highlight.column + col_offset
+      table.insert(highlights, highlight)
 
-    highlight.column = highlight.column + col_offset
-    -- No longer needed
-    highlight.hunk = nil
-
-    if defer then
-      defer()
-      defer = nil
+      if defer then
+        defer()
+        defer = nil
+      end
     end
   end
 end
