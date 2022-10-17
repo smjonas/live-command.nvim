@@ -11,8 +11,7 @@ jobs:
   luacheck:
     runs-on: ubuntu-latest
     steps:
-      - name: Luacheck
-        uses: lunarmodules/luacheck@v1.0.0
+      - uses: lunarmodules/luacheck@v1.0.0
 
   stylua:
     runs-on: ubuntu-latest
@@ -22,3 +21,19 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           args: --color always --check lua/
+
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install Neovim
+        uses: rhysd/action-setup-vim@v1
+        with:
+          neovim: true
+          version: nightly
+      - name: Install luarocks + packages
+        run: |
+          sudo apt install -y luarocks
+          sudo luarocks install vusted
+      - name: Run tests
+        run: vusted tests --output=gtest
