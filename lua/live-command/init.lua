@@ -26,6 +26,11 @@ local function log(msg, level)
   end
 end
 
+-- Inserts str_2 into str_1 at the given position.
+local function string_insert(str_1, str_2, pos)
+  return str_1:sub(1, pos - 1) .. str_2 .. str_1:sub(pos)
+end
+
 -- Inserts a newline character after each character of s and returns the table of characters.
 local function splice(s)
   local chars = {}
@@ -52,69 +57,48 @@ local function add_inline_highlights(line, cached_lns, updated_lines, undo_delet
       vim.inspect(line_diff)
     )
   end)
-  local cached_line = cached_lns[line]
-  local updated_line = {}
 
-  local current_char = 0
-  local col_offset = 0
-  local last_hunk = { end_a = 0 }
-
-  for i, line_hunk in ipairs(line_diff) do
-    -- print(vim.inspect(line_hunk))
-    local start_a, count_a, start_b, count_b = unpack(line_hunk)
-    local end_a, end_b = start_a + count_a - 1, start_b + count_b - 1
+  for _, line_hunk in ipairs(line_diff) do
+    local _, count_a, start_b, count_b = unpack(line_hunk)
     local hunk_kind = (count_a == 0 and "insertion") or (count_b == 0 and "deletion") or "change"
 
-    local col_delta = 0
-    if hunk_kind == "insertion" then
-      table.insert(updated_line, updated_lines[line]:sub(start_b, end_b))
-    else
-      if undo_deletions and hunk_kind == "deletion" then
-        -- Restore deleted characters
-        table.insert(updated_line, cached_lns[line]:sub(start_a, end_a))
-        current_char = current_char + count_a
-        -- col_delta = count_a
-      elseif hunk_kind == "change" then
-        -- Restore characters removed by change
-        table.insert(updated_line, updated_lines[line]:sub(start_b, end_b))
-        col_delta = -(count_a - count_b)
-        current_char = current_char + col_delta
-      end
-    end
-
     if hunk_kind ~= "deletion" or undo_deletions then
-      local highlight = {
+      table.insert(highlights, {
+        hunk = line_hunk,
         kind = hunk_kind,
         line = line,
-        column = col_offset + ((hunk_kind == "deletion") and start_a or start_b),
+        -- Add 1 because when count is zero, start_b / start_b is the position before the deletion
+        column = (hunk_kind == "deletion") and start_b + 1 or start_b,
         length = (hunk_kind == "deletion") and count_a or count_b,
-      }
-
-      if start_a > last_hunk.end_a + 1 then
-        -- There is a gap between the last hunk and the current one, add the text inbetween
-        local unchanged_part = cached_line:sub(last_hunk.end_a + 1, start_a - (hunk_kind ~= "insertion" and 1 or 0))
-        table.insert(updated_line, #updated_line, unchanged_part)
-        current_char = current_char + #unchanged_part
-      end
-
-      if hunk_kind == "insertion" then
-        highlight.column = current_char + 1
-        -- print("CC" .. current_char)
-        current_char = current_char + count_b
-        --   print("set " .. highlight.column)
-      end
-
-      table.insert(highlights, highlight)
-      last_hunk = { end_a = (count_a == 0) and start_a or end_a }
-      col_offset = col_offset + col_delta
-    end
-
-    if i == #line_diff and last_hunk.end_a < #cached_line then
-      -- Add unchanged characters at the end of the line
-      table.insert(updated_line, cached_line:sub(last_hunk.end_a + 1))
+      })
     end
   end
-  updated_lines[line] = table.concat(updated_line)
+
+  local defer
+  local col_offset = 0
+  for _, highlight in ipairs(highlights) do
+    local start_a, count_a, start_b, _ = unpack(highlight.hunk)
+
+    if highlight.kind == "deletion" and undo_deletions then
+      local deleted_part = cached_lns[line]:sub(start_a, start_a + count_a - 1)
+      -- Restore deleted characters
+      updated_lines[line] = string_insert(updated_lines[line], deleted_part, col_offset + start_b + 1)
+      defer = function()
+        col_offset = col_offset + #deleted_part
+      end
+    end
+    -- Observation: when changing "line" to "tes", there should not be an offset (-2)
+    -- after changing "lin" to "t" (because we are not modifying the line)
+
+    highlight.column = highlight.column + col_offset
+    -- No longer needed
+    highlight.hunk = nil
+
+    if defer then
+      defer()
+      defer = nil
+    end
+  end
 end
 
 -- Expose function to tests
