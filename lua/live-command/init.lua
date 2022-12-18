@@ -103,6 +103,7 @@ local function get_diff_highlights(cached_lns, updated_lines, line_range, opts)
   -- Using the on_hunk callback and returning -1 to cancel causes an error so don't use that
   local hunks = vim.diff(table.concat(cached_lns, "\n"), table.concat(updated_lines, "\n"), {
     result_type = "indices",
+    linematch = true,
   })
   log(("Visible line range: %d-%d"):format(line_range[1], line_range[2]))
 
@@ -195,76 +196,79 @@ local function command_preview(opts, preview_ns, preview_buf)
   local command = opts.command
 
   local bufnr = vim.api.nvim_get_current_buf()
-  if should_cache_lines then
-    prev_lazyredraw = vim.o.lazyredraw
-    vim.o.lazyredraw = true
-    cached_lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
-    should_cache_lines = false
-  end
-
+  -- if should_cache_lines then
+  --   prev_lazyredraw = vim.o.lazyredraw
+  --   vim.o.lazyredraw = true
+  --   cached_lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+  --   should_cache_lines = false
+  -- end
+  --
   -- Ignore any errors that occur while running the command.
   -- This reduces noise when a plugin modifies vim.v.errmsg (whether accidentally or not).
-  local prev_errmsg = vim.v.errmsg
-  local visible_line_range = { vim.fn.line("w0"), vim.fn.line("w$") }
+  -- local prev_errmsg = vim.v.errmsg
+  -- local visible_line_range = { vim.fn.line("w0"), vim.fn.line("w$") }
 
   if opts.line1 == opts.line2 then
-    run_buf_cmd(bufnr, ("%s %s"):format(command.cmd, args))
+    -- run_buf_cmd(bufnr, ("%s %s"):format(command.cmd, args))
+    -- run_buf_cmd(bufnr, "Subvert /test/kek/")
+    vim.cmd([[substitute/\v\C%(old|OLD)/new/]])
   else
-    run_buf_cmd(bufnr, ("%d,%d%s %s"):format(opts.line1, opts.line2, command.cmd, args))
+    -- run_buf_cmd(bufnr, ("%d,%d%s %s"):format(opts.line1, opts.line2, command.cmd, args))
   end
 
-  vim.v.errmsg = prev_errmsg
-  -- Adjust range to account for potentially inserted lines / scroll
-  visible_line_range = {
-    math.max(visible_line_range[1], vim.fn.line("w0")),
-    math.max(visible_line_range[2], vim.fn.line("w$")),
-  }
+  -- vim.v.errmsg = prev_errmsg
+  -- -- Adjust range to account for potentially inserted lines / scroll
+  -- visible_line_range = {
+  --   math.max(visible_line_range[1], vim.fn.line("w0")),
+  --   math.max(visible_line_range[2], vim.fn.line("w$")),
+  -- }
+  --
+  -- local updated_lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+  -- local set_lines = function(lines)
+  --   -- TODO: is this worth optimizing?
+  --   vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
+  --   if preview_buf then
+  --     vim.api.nvim_buf_set_lines(preview_buf, 0, -1, false, lines)
+  --   end
+  -- end
 
-  local updated_lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
-  local set_lines = function(lines)
-    -- TODO: is this worth optimizing?
-    vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
-    if preview_buf then
-      vim.api.nvim_buf_set_lines(preview_buf, 0, -1, false, lines)
-    end
-  end
-
-  if not opts.line1 or not command.enable_highlighting then
-    set_lines(updated_lines)
-    -- This should not happen
-    if not opts.line1 then
-      log("No line1 range provided", "ERROR")
-    end
-    return 2
-  end
-
+  -- if not opts.line1 or not command.enable_highlighting then
+  --   set_lines(updated_lines)
+  --   -- This should not happen
+  --   if not opts.line1 then
+  --     log("No line1 range provided", "ERROR")
+  --   end
+  --   return 2
+  -- end
+  --
   -- An empty buffer is represented as { "" }, change it to {}
   if not updated_lines[2] and updated_lines[1] == "" then
     updated_lines = {}
   end
 
-  local highlights = get_diff_highlights(cached_lines, updated_lines, visible_line_range, {
-    undo_deletions = command.hl_groups["deletion"] ~= false,
-    inline_highlighting = command.inline_highlighting,
-  })
-  log(function()
-    return "Highlights: " .. vim.inspect(highlights)
-  end)
-
-  set_lines(updated_lines)
-  for _, hl in ipairs(highlights) do
-    local hl_group = command.hl_groups[hl.kind]
-    if hl_group ~= false then
-      vim.api.nvim_buf_add_highlight(
-        bufnr,
-        preview_ns,
-        hl_group,
-        hl.line - 1,
-        hl.column - 1,
-        hl.length == -1 and -1 or hl.column + hl.length - 1
-      )
-    end
-  end
+  -- local highlights = get_diff_highlights(cached_lines, updated_lines, visible_line_range, {
+  --   undo_deletions = command.hl_groups["deletion"] ~= false,
+  --   inline_highlighting = command.inline_highlighting,
+  -- })
+  -- log(function()
+  --   return "Highlights: " .. vim.inspect(highlights)
+  -- end)
+  --
+  -- set_lines(updated_lines)
+  -- for _, hl in ipairs(highlights) do
+  --   local hl_group = command.hl_groups[hl.kind]
+  --   if hl_group ~= false then
+  --     vim.api.nvim_buf_add_highlight(
+  --       bufnr,
+  --       preview_ns,
+  --       hl_group,
+  --       hl.line - 1,
+  --       hl.column - 1,
+  --       hl.length == -1 and -1 or hl.column + hl.length - 1
+  --     )
+  --   end
+  -- end
+  --
   return 2
 end
 
@@ -278,7 +282,7 @@ end
 
 local function execute_command(command)
   log("Executing command: " .. command)
-  vim.cmd(command)
+  vim.cmd([[substitute/\v\C%(Old|old|OLD)/new/]])
   restore_buffer_state()
 end
 
