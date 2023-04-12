@@ -1,5 +1,5 @@
 # live-command.nvim
-![version](https://img.shields.io/badge/version-1.2.1-brightgreen)
+![version](https://img.shields.io/badge/version-1.3.0-brightgreen)
 
 Text editing in Neovim with immediate visual feedback: view the effects of any command on your buffer contents live. Preview macros, the `:norm` command & more!
 
@@ -7,24 +7,26 @@ Text editing in Neovim with immediate visual feedback: view the effects of any c
 <p><sub>Theme: <a href="https://github.com/folke/tokyonight.nvim">tokyonight.nvim</a></sub></p>
 
 ## :sparkles: Motivation and Features
-In version 0.8, Neovim has introduced the `command-preview` feature.
-Contrary to what "command preview" suggests, previewing any given
-command does not work out of the box: you need to manually update the buffer text and set
-highlights *for every command*.
+In Neovim version 0.8, the `command-preview` feature has been introduced.
+Despite its name, it does not enable automatic previewing of any command.
+Instead, users must manually update the buffer text and set highlights *for each command*.
 
-This plugin tries to change that: it provides a **simple API for creating previewable commands**
-in Neovim. Just specify the command you want to run and live-command will do all the
-work for you. This includes viewing **individual insertions, changes and deletions** as you
-type.
+This plugin aims to address this issue by offering a **simple API for creating previewable commands**
+in Neovim. Simply provide the command you want to preview and live-command will do all the
+work for you. This includes viewing **individual insertions, changes and deletions** as you type.
+
+After the most recent update, live-command now spawns a separate Neovim instance to execute commands.
+This avoids many issues encountered when running the command directly in the current Neovim instance
+([#6](https://github.com/smjonas/live-command.nvim/issues/6), [#16](https://github.com/smjonas/live-command.nvim/issues/16), [#24](https://github.com/smjonas/live-command.nvim/issues/24), [#28](https://github.com/smjonas/live-command.nvim/issues/28)).
 
 ## Requirements
 Neovim 0.8+
 
 ## :rocket: Getting started
 Install using your favorite package manager and call the setup function with a table of
-commands to create. Here is an example that creates a previewable `:Norm` command:
+commands to create. Here is an example for `lazy.nvim` that creates a previewable `:Norm` command:
 ```lua
-use {
+{
   "smjonas/live-command.nvim",
   -- live-command supports semantic versioning via tags
   -- tag = "1.*",
@@ -84,7 +86,6 @@ require("live-command").setup {
       change = "DiffChange",
     },
   },
-  debug = false,
 }
 ```
 
@@ -116,15 +117,6 @@ A list of highlight groups per edit type (insertion, deletion or change) used fo
 The table will be merged with the defaults so you can omit any keys that are the same as the default.
 If a value is set to `false`, no highlights will be shown for that type. If `hl_groups.deletion` is `false`,
 deletion edits will not be undone which is otherwise done to make the text changes visible.
-
----
-
-`debug: boolean`
-
-Default: `false`
-
-If `true`, more stuff (not only errors) will be logged. After previewing a command,
-you can view the log by running `:LiveCommandLog`.
 
 ---
 
