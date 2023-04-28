@@ -3,9 +3,7 @@
 
 Text editing in Neovim with immediate visual feedback: view the effects of any command on your buffer contents live. Preview macros, the `:norm` command & more!
 
-<div align="center">
-  <video alt="live-command demo video" src="https://user-images.githubusercontent.com/40792180/194180320-691efe71-0743-40e5-b0d7-454f142a9235.mp4"></video>
-</div>
+![live-command.nvim demo video](https://user-images.githubusercontent.com/40792180/235201812-adc95327-65cc-4ae4-8c2e-804853dd0c02.gif)
 <p><sub>Theme: <a href="https://github.com/folke/tokyonight.nvim">tokyonight.nvim</a></sub></p>
 
 ## :sparkles: Motivation and Features
@@ -50,7 +48,7 @@ Here is a list of available settings:
 | ----------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------
 | cmd         | string   | The name of an existing command to preview.
 | args        | string? \| function(arg: string?, opts: table) -> string | Arguments passed to the command. If a function, takes in the options passed to the command and must return the transformed argument(s) `cmd` will be called with. `opts` has the same structure as the `opts` table passed to the `nvim_create_user_command` callback function. If `nil`, the arguments are supplied from the command-line while the user is typing the command.
-| range       | string?  | The range to prepend to the command. Set this to `""` if you don't want the new command to receive a count, e.g. when turning `:9Reg a` into `:norm 9@a`. If `nil`, the range will be supplied from the command entered. 
+| range       | string?  | The range to prepend to the command. Set this to `""` if you don't want the new command to receive a count, e.g. when turning `:9Reg a` into `:norm 9@a`. If `nil`, the range will be supplied from the command entered.
 
 ### Example
 The following example creates a `:Reg` command which allows you to preview the effects of macros (e.g. `:5Reg a` to run macro `a` five times).
