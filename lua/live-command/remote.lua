@@ -149,10 +149,9 @@ end
 ---@param cursor_row number
 ---@param cursor_col number
 M.run_cmd = function(chan_id, cmd, cursor_row, cursor_col)
-  -- Restore the buffer state since the last write and move the cursor to the correct position
-  vim.rpcrequest(chan_id, "nvim_exec_lua", "vim.api.nvim_win_set_cursor(...)", { 0, { cursor_row, cursor_col } })
-
-  -- Execute the command asynchronously using rpcnotify as it may block
+  -- Move the cursor to the correct position
+  vim.rpcnotify(chan_id, "nvim_exec_lua", "vim.api.nvim_win_set_cursor(...)", { 0, { cursor_row, cursor_col } })
+  -- Execute the command
   vim.rpcnotify(chan_id, "nvim_exec", cmd, false)
 
   return vim.rpcrequest(
