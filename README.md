@@ -84,7 +84,6 @@ require("live-command").setup {
       change = "DiffChange",
     },
   },
-  debug = false,
 }
 ```
 
@@ -116,15 +115,6 @@ A list of highlight groups per edit type (insertion, deletion or change) used fo
 The table will be merged with the defaults so you can omit any keys that are the same as the default.
 If a value is set to `false`, no highlights will be shown for that type. If `hl_groups.deletion` is `false`,
 deletion edits will not be undone which is otherwise done to make the text changes visible.
-
----
-
-`debug: boolean`
-
-Default: `false`
-
-If `true`, more stuff (not only errors) will be logged. After previewing a command,
-you can view the log by running `:LiveCommandLog`.
 
 ---
 

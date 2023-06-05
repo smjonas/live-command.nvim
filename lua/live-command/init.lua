@@ -10,21 +10,14 @@ M.defaults = {
   },
 }
 
+local api = vim.api
+
+---@type Logger
+local logger
+
 local should_cache_lines = true
 local cached_lines
 local prev_lazyredraw
-
-local logs = {}
-local function log(msg, level)
-  level = level or "TRACE"
-  if M.debug or level ~= "TRACE" then
-    msg = type(msg) == "function" and msg() or msg
-    logs[level] = logs[level] or {}
-    for _, line in ipairs(vim.split(msg .. "\n", "\n")) do
-      table.insert(logs[level], line)
-    end
-  end
-end
 
 -- Inserts str_2 into str_1 at the given position.
 local function string_insert(str_1, str_2, pos)
@@ -47,7 +40,7 @@ local function add_inline_highlights(line, cached_lns, updated_lines, undo_delet
   local line_a = splice(cached_lns[line])
   local line_b = splice(updated_lines[line])
   local line_diff = vim.diff(line_a, line_b, { result_type = "indices" })
-  log(function()
+  logger.trace(function()
     return ("Changed lines (line %d):\nOriginal: '%s' (len=%d)\nUpdated:  '%s' (len=%d)\n\nInline hunks: %s"):format(
       line,
       cached_lns[line],
@@ -85,6 +78,7 @@ local function add_inline_highlights(line, cached_lns, updated_lines, undo_delet
       -- Observation: when changing "line" to "tes", there should not be an offset (-2)
       -- after changing "lin" to "t" (because we are not modifying the line)
       highlight.column = highlight.column + col_offset
+      highlight.hunk = nil
       table.insert(highlights, highlight)
 
       if defer then
@@ -104,10 +98,10 @@ local function get_diff_highlights(cached_lns, updated_lines, line_range, opts)
   local hunks = vim.diff(table.concat(cached_lns, "\n"), table.concat(updated_lines, "\n"), {
     result_type = "indices",
   })
-  log(("Visible line range: %d-%d"):format(line_range[1], line_range[2]))
+  logger.trace(("Visible line range: %d-%d"):format(line_range[1], line_range[2]))
 
   for i, hunk in ipairs(hunks) do
-    log(function()
+    logger.trace(function()
       return ("Hunk %d/%d: %s"):format(i, #hunks, vim.inspect(hunk))
     end)
 
@@ -123,7 +117,7 @@ local function get_diff_highlights(cached_lns, updated_lines, line_range, opts)
         end_line = start_line + (count_a - count_b) - 1
       end
 
-      log(function()
+      logger.trace(function()
         return ("Lines %d-%d:\nOriginal: %s\nUpdated: %s"):format(
           start_line,
           end_line,
@@ -177,9 +171,9 @@ end
 M._preview_across_lines = get_diff_highlights
 
 local function run_buf_cmd(buf, cmd)
-  vim.api.nvim_buf_call(buf, function()
-    log(function()
-      return ("Previewing command: %s (current line = %d)"):format(cmd, vim.api.nvim_win_get_cursor(0)[1])
+  api.nvim_buf_call(buf, function()
+    logger.trace(function()
+      return ("Previewing command: %s (current line = %d)"):format(cmd, api.nvim_win_get_cursor(0)[1])
     end)
     vim.cmd(cmd)
   end)
@@ -190,15 +184,14 @@ local function command_preview(opts, preview_ns, preview_buf)
   -- Any errors that occur in the preview function are not directly shown to the user but stored in vim.v.errmsg.
   -- Related: https://github.com/neovim/neovim/issues/18910.
   vim.v.errmsg = ""
-  logs = {}
   local args = opts.cmd_args
   local command = opts.command
 
-  local bufnr = vim.api.nvim_get_current_buf()
+  local bufnr = api.nvim_get_current_buf()
   if should_cache_lines then
     prev_lazyredraw = vim.o.lazyredraw
     vim.o.lazyredraw = true
-    cached_lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+    cached_lines = api.nvim_buf_get_lines(bufnr, 0, -1, false)
     should_cache_lines = false
   end
 
@@ -220,12 +213,12 @@ local function command_preview(opts, preview_ns, preview_buf)
     math.max(visible_line_range[2], vim.fn.line("w$")),
   }
 
-  local updated_lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+  local updated_lines = api.nvim_buf_get_lines(bufnr, 0, -1, false)
   local set_lines = function(lines)
     -- TODO: is this worth optimizing?
-    vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
+    api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
     if preview_buf then
-      vim.api.nvim_buf_set_lines(preview_buf, 0, -1, false, lines)
+      api.nvim_buf_set_lines(preview_buf, 0, -1, false, lines)
     end
   end
 
@@ -233,7 +226,7 @@ local function command_preview(opts, preview_ns, preview_buf)
     set_lines(updated_lines)
     -- This should not happen
     if not opts.line1 then
-      log("No line1 range provided", "ERROR")
+      logger.error("No line1 range provided")
     end
     return 2
   end
@@ -247,7 +240,7 @@ local function command_preview(opts, preview_ns, preview_buf)
     undo_deletions = command.hl_groups["deletion"] ~= false,
     inline_highlighting = command.inline_highlighting,
   })
-  log(function()
+  logger.trace(function()
     return "Highlights: " .. vim.inspect(highlights)
   end)
 
@@ -255,7 +248,7 @@ local function command_preview(opts, preview_ns, preview_buf)
   for _, hl in ipairs(highlights) do
     local hl_group = command.hl_groups[hl.kind]
     if hl_group ~= false then
-      vim.api.nvim_buf_add_highlight(
+      api.nvim_buf_add_highlight(
         bufnr,
         preview_ns,
         hl_group,
@@ -272,12 +265,12 @@ local function restore_buffer_state()
   vim.o.lazyredraw = prev_lazyredraw
   should_cache_lines = true
   if vim.v.errmsg ~= "" then
-    log(("An error occurred in the preview function:\n%s"):format(vim.inspect(vim.v.errmsg)), "ERROR")
+    logger.error(("An error occurred in the preview function:\n%s"):format(vim.inspect(vim.v.errmsg)))
   end
 end
 
 local function execute_command(command)
-  log("Executing command: " .. command)
+  logger.trace("Executing command: " .. command)
   vim.cmd(command)
   restore_buffer_state()
 end
@@ -285,7 +278,7 @@ end
 local create_user_commands = function(commands)
   for name, command in pairs(commands) do
     local args, range
-    vim.api.nvim_create_user_command(name, function(opts)
+    api.nvim_create_user_command(name, function(opts)
       local range_string = range and range
         or (
           opts.range == 2 and ("%s,%s"):format(opts.line1, opts.line2)
@@ -353,26 +346,22 @@ M.setup = function(user_config)
   local config = vim.tbl_deep_extend("force", M.defaults, user_config or {})
   validate_config(config)
   create_user_commands(config.commands)
+  logger = require("live-command.logger")
 
-  local id = vim.api.nvim_create_augroup("command_preview.nvim", { clear = true })
+  local id = api.nvim_create_augroup("command_preview.nvim", { clear = true })
   -- We need to be able to tell when the command was cancelled so the buffer lines are refetched next time.
-  vim.api.nvim_create_autocmd({ "CmdLineLeave" }, {
+  api.nvim_create_autocmd({ "CmdLineLeave" }, {
     group = id,
     -- Schedule wrap to run after a potential command execution
     callback = vim.schedule_wrap(function()
       restore_buffer_state()
     end),
   })
+end
 
-  M.debug = user_config.debug
-
-  vim.api.nvim_create_user_command("LiveCommandLog", function()
-    local msg = ("live-command log\n================\n\n%s%s"):format(
-      logs.ERROR and "[ERROR]\n" .. table.concat(logs.ERROR, "\n") .. (logs.TRACE and "\n" or "") or "",
-      logs.TRACE and "[TRACE]\n" .. table.concat(logs.TRACE, "\n") or ""
-    )
-    vim.notify(msg)
-  end, { nargs = 0 })
+---@param logger_ Logger
+M._set_logger = function(logger_)
+  logger = logger_
 end
 
 M.version = "1.2.1"

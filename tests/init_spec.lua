@@ -1,6 +1,10 @@
 local live_command = require("live-command")
 
 describe("inline_highlights", function()
+  setup(function()
+    live_command._set_logger(require("live-command.logger"))
+  end)
+
   -- Checks for the case when the end of the line was unchanged
   it("single insertion", function()
     local highlights = {}
@@ -56,7 +60,7 @@ describe("inline_highlights", function()
       { kind = "change", line = 1, column = 1, length = 4 },
       { kind = "change", line = 1, column = 8, length = 1 },
     }, highlights)
-    assert.are_same({"test = Function()"}, updated_lines)
+    assert.are_same({ "test = Function()" }, updated_lines)
   end)
 
   it("change should not use negative column values", function()
@@ -81,7 +85,7 @@ describe("inline_highlights", function()
       { kind = "deletion", line = 1, column = 3, length = 2 },
       { kind = "deletion", line = 1, column = 6, length = 19 },
     }, highlights)
-    assert.are_same({"le plugins.nvim-surround"}, updated_lines)
+    assert.are_same({ "le plugins.nvim-surround" }, updated_lines)
   end)
 
   it("deletion", function()
