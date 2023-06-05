@@ -7,15 +7,13 @@ Text editing in Neovim with immediate visual feedback: view the effects of any c
 <p><sub>Theme: <a href="https://github.com/folke/tokyonight.nvim">tokyonight.nvim</a></sub></p>
 
 ## :sparkles: Motivation and Features
-In version 0.8, Neovim has introduced the `command-preview` feature.
-Contrary to what "command preview" suggests, previewing any given
-command does not work out of the box: you need to manually update the buffer text and set
-highlights *for every command*.
+In Neovim version 0.8, the `command-preview` feature has been introduced.
+Despite its name, it does not enable automatic previewing of any command.
+Instead, users must manually update the buffer text and set highlights *for each command*.
 
-This plugin tries to change that: it provides a **simple API for creating previewable commands**
-in Neovim. Just specify the command you want to run and live-command will do all the
-work for you. This includes viewing **individual insertions, changes and deletions** as you
-type.
+This plugin aims to address this issue by offering a **simple API for creating previewable commands**
+in Neovim. Simply provide the command you want to preview and live-command will do all the
+work for you. This includes viewing **individual insertions, changes and deletions** as you type.
 
 ## Requirements
 Neovim 0.8+
