@@ -1,22 +1,84 @@
 local M = {}
 
+---@class livecmd.Config.HlGroups
+---@field insertion string|false
+---@field deletion string|false
+---@field change string|false
+
+---@class livecmd.Config
+---@field enable_highlighting boolean
+---@field inline_highlighting boolean
+---@field hl_groups livecmd.Config.HlGroups
+
+---@type livecmd.Config
+M.defaults = {
+  enable_highlighting = true,
+  inline_highlighting = true,
+  hl_groups = {
+    insertion = "DiffAdd",
+    deletion = "DiffDelete",
+    change = "DiffChange",
+  },
+}
+
 local cmd_executor = require("live-command.cmd_executor")
 local api = vim.api
 
+local prev_lazyredraw
+
+---@type string[]
+local received_lines
+
+---@type livecmd.Highlight[]
 local received_highlights
+
+---@param bufnr number
+---@param preview_ns number
+---@param highlights livecmd.Highlight[]
+local apply_highlights = function(bufnr, preview_ns, highlights)
+  for _, hl in ipairs(highlights) do
+    if hl.hlgroup ~= false then
+      api.nvim_buf_add_highlight(
+        bufnr,
+        preview_ns,
+        hl.hlgroup,
+        hl.line - 1,
+        hl.column - 1,
+        hl.length == -1 and -1 or hl.column + hl.length - 1
+      )
+    end
+  end
+end
+
+local setup = function()
+  vim.v.errmsg = ""
+  prev_lazyredraw = vim.o.lazyredraw
+  vim.o.lazyredraw = true
+end
+
+local teardown = function()
+  if vim.v.errmsg ~= "" then
+    -- l(vim.v.errmsg, vim.log.levels.ERROR)
+  end
+  vim.o.lazyredraw = prev_lazyredraw
+end
 
 local create_preview_command = function()
   api.nvim_create_user_command("Preview", function() end, {
     nargs = "*",
     preview = function(opts, preview_ns, preview_buf)
+      setup()
       local cmd = opts.args
-      vim.v.errmsg = cmd
-      if received_highlights then
-        api.nvim_set_current_line(received_highlights)
+      if received_lines then
+        api.nvim_buf_set_lines(0, 0, -1, false, received_lines)
       end
-      cmd_executor.submit_command(cmd, preview_buf or 0, M.receive_highlights)
+      if received_highlights then
+        apply_highlights(0, preview_ns, received_highlights)
+      end
+      cmd_executor.submit_command(cmd, M.defaults, 0, M.receive_buffer)
+      teardown()
       return 2
-    end
+    end,
   })
 end
 
@@ -28,12 +90,20 @@ local refresh_cmd_preview = function()
   end
 end
 
-M.receive_highlights = function(highlights, bufnr)
+M.receive_buffer = function(bufnr, lines, highlights)
+  received_lines = lines
   received_highlights = highlights
   refresh_cmd_preview()
 end
 
 M.setup = function()
+  if vim.fn.has("nvim-0.8.0") ~= 1 then
+    vim.notify(
+      "[live-command] This plugin requires at least Neovim 0.8. Please upgrade to a more recent vers1ion of Neovim.",
+      vim.log.levels.ERROR
+    )
+    return
+  end
   create_preview_command()
 end
 

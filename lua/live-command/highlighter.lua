@@ -1,10 +1,10 @@
 local M = {}
 
--- @class livecmd.Highlight
--- @field line number
--- @field column number
--- @field length number
--- @field hlgroup number
+---@class livecmd.Highlight
+---@field line number
+---@field column number
+---@field length number
+---@field hlgroup string|false
 
 local logger = require("live-command.logger")
 
@@ -76,7 +76,13 @@ local function add_inline_highlights(line, old_lines, new_lines, undo_deletions,
   end
 end
 
-M.get_highlights = function(diff, old_lines, new_lines, line_range, opts)
+--- @param old_lines string[]
+--- @param new_lines string[]
+--- @param line_range {start:number, end:number}
+--- @param inline_highlighting boolean
+--- @param undo_deletions boolean
+--- @return livecmd.Highlight[], string[]
+M.get_highlights = function(diff, old_lines, new_lines, line_range, inline_highlighting, undo_deletions)
   local highlights = {}
   for i, hunk in ipairs(diff) do
     logger.trace(function()
@@ -107,11 +113,11 @@ M.get_highlights = function(diff, old_lines, new_lines, line_range, opts)
       for line = start_line, end_line do
         -- Outside of visible area, skip current or all hunks
         if line > line_range[2] then
-          return highlights
+          return highlights, new_lines
         end
 
         if line >= line_range[1] then
-          if hunk_kind == "deletion" and opts.undo_deletions then
+          if hunk_kind == "deletion" and undo_deletions then
             -- Hunk was deleted: reinsert lines
             table.insert(new_lines, line, old_lines[line])
           end
@@ -127,13 +133,13 @@ M.get_highlights = function(diff, old_lines, new_lines, line_range, opts)
       for line = start_b, start_b + count_b - 1 do
         -- Outside of visible area, skip current or all hunks
         if line > line_range[2] then
-          return highlights
+          return highlights, new_lines
         end
 
         if line >= line_range[1] then
-          if opts.inline_highlighting then
+          if inline_highlighting then
             -- Get diff for each line in the hunk
-            add_inline_highlights(line, old_lines, new_lines, opts.undo_deletions, highlights)
+            add_inline_highlights(line, old_lines, new_lines, undo_deletions, highlights)
           else
             -- Use a single highlight for the whole line
             table.insert(highlights, { kind = "change", line = line, column = 1, length = -1 })
@@ -142,7 +148,7 @@ M.get_highlights = function(diff, old_lines, new_lines, line_range, opts)
       end
     end
   end
-  return highlights
+  return highlights, new_lines
 end
 
 return M
