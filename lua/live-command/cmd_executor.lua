@@ -2,18 +2,44 @@ local M = {}
 
 local differ = require("live-command.differ")
 local highlighter = require("live-command.highlighter")
+local logger = require("live-command.logger")
 
 ---@type string
 local latest_cmd
 
 local running = false
 
+local refetch_lines = true
+
+---@tyle string[]
+local cached_lines
+
+---@type boolean
 local prev_lazyredraw
 
+local setup = function()
+  prev_lazyredraw = vim.o.lazyredraw
+  vim.o.lazyredraw = true
+  if refetch_lines then
+    cached_lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
+    refetch_lines = false
+  end
+  return cached_lines
+end
+
+M.teardown = function()
+  vim.o.lazyredraw = prev_lazyredraw
+  refetch_lines = true
+  if vim.v.errmsg ~= "" then
+    logger.error(("An error occurred in the preview function:\n%s"):format(vim.inspect(vim.v.errmsg)))
+  end
+end
+
 local execute_command = function(cmd, bufnr)
-  local old_buf_lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+  local old_buf_lines = setup()
   local visible_line_range = { vim.fn.line("w0"), vim.fn.line("w$") }
   vim.cmd(cmd)
+  M.teardown()
   visible_line_range = {
     math.max(visible_line_range[1], vim.fn.line("w0")),
     math.max(visible_line_range[2], vim.fn.line("w$")),

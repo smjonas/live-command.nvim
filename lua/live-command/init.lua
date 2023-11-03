@@ -97,6 +97,18 @@ M.receive_buffer = function(bufnr, lines, highlights)
   -- refresh_cmd_preview()
 end
 
+local create_autocmds = function()
+  local id = api.nvim_create_augroup("command_preview.nvim", { clear = true })
+  -- We need to be able to tell when the command was cancelled so the buffer lines are refetched next time.
+  api.nvim_create_autocmd({ "CmdLineLeave" }, {
+    group = id,
+    -- Schedule wrap to run after a potential command execution
+    callback = vim.schedule_wrap(function()
+      cmd_executor.teardown()
+    end),
+  })
+end
+
 M.setup = function()
   if vim.fn.has("nvim-0.8.0") ~= 1 then
     vim.notify(
@@ -106,6 +118,7 @@ M.setup = function()
     return
   end
   create_preview_command()
+  create_autocmds()
 end
 
 M.version = "2.0.0"
