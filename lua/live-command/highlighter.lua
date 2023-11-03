@@ -4,7 +4,7 @@ local M = {}
 ---@field line number
 ---@field column number
 ---@field length number
----@field hlgroup string|false
+---@field kind string
 
 local logger = require("live-command.logger")
 

@@ -35,13 +35,15 @@ local received_highlights
 ---@param bufnr number
 ---@param preview_ns number
 ---@param highlights livecmd.Highlight[]
-local apply_highlights = function(bufnr, preview_ns, highlights)
+---@param hl_groups table<string, string>
+local apply_highlights = function(bufnr, preview_ns, highlights, hl_groups)
   for _, hl in ipairs(highlights) do
-    if hl.hlgroup ~= false then
+    local hl_group = hl_groups[hl.kind]
+    if hl_group ~= false then
       api.nvim_buf_add_highlight(
         bufnr,
         preview_ns,
-        hl.hlgroup,
+        hl_group,
         hl.line - 1,
         hl.column - 1,
         hl.length == -1 and -1 or hl.column + hl.length - 1
@@ -51,15 +53,11 @@ local apply_highlights = function(bufnr, preview_ns, highlights)
 end
 
 local setup = function()
-  vim.v.errmsg = ""
   prev_lazyredraw = vim.o.lazyredraw
   vim.o.lazyredraw = true
 end
 
 local teardown = function()
-  if vim.v.errmsg ~= "" then
-    -- l(vim.v.errmsg, vim.log.levels.ERROR)
-  end
   vim.o.lazyredraw = prev_lazyredraw
 end
 
@@ -71,12 +69,15 @@ local create_preview_command = function()
       local cmd = opts.args
       if received_lines then
         api.nvim_buf_set_lines(0, 0, -1, false, received_lines)
+        -- vim.g.kek = "received:" .. received_lines[1] .. ", new:" .. vim.g.lel
+        -- require("live-command.logger").trace(function()
+        --   return "rcv hls" .. vim.inspect(received_highlights) .. (vim.v.errmsg or "")
+        -- end)
       end
       if received_highlights then
-        apply_highlights(0, preview_ns, received_highlights)
+        apply_highlights(0, preview_ns, received_highlights, M.defaults.hl_groups)
       end
       cmd_executor.submit_command(cmd, M.defaults, 0, M.receive_buffer)
-      teardown()
       return 2
     end,
   })
@@ -93,7 +94,7 @@ end
 M.receive_buffer = function(bufnr, lines, highlights)
   received_lines = lines
   received_highlights = highlights
-  refresh_cmd_preview()
+  -- refresh_cmd_preview()
 end
 
 M.setup = function()
