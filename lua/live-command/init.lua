@@ -52,30 +52,18 @@ local apply_highlights = function(bufnr, preview_ns, highlights, hl_groups)
   end
 end
 
-local setup = function()
-  prev_lazyredraw = vim.o.lazyredraw
-  vim.o.lazyredraw = true
-end
-
-local teardown = function()
-  vim.o.lazyredraw = prev_lazyredraw
-end
-
 local create_preview_command = function()
   api.nvim_create_user_command("Preview", function() end, {
     nargs = "*",
     preview = function(opts, preview_ns, preview_buf)
-      setup()
       local cmd = opts.args
       if received_lines then
         api.nvim_buf_set_lines(0, 0, -1, false, received_lines)
-        -- vim.g.kek = "received:" .. received_lines[1] .. ", new:" .. vim.g.lel
-        -- require("live-command.logger").trace(function()
-        --   return "rcv hls" .. vim.inspect(received_highlights) .. (vim.v.errmsg or "")
-        -- end)
+        received_lines = nil
       end
       if received_highlights then
         apply_highlights(0, preview_ns, received_highlights, M.defaults.hl_groups)
+        received_highlights = nil
       end
       cmd_executor.submit_command(cmd, M.defaults, 0, M.receive_buffer)
       return 2
@@ -94,7 +82,7 @@ end
 M.receive_buffer = function(bufnr, lines, highlights)
   received_lines = lines
   received_highlights = highlights
-  -- refresh_cmd_preview()
+  refresh_cmd_preview()
 end
 
 local create_autocmds = function()
@@ -104,7 +92,7 @@ local create_autocmds = function()
     group = id,
     -- Schedule wrap to run after a potential command execution
     callback = vim.schedule_wrap(function()
-      cmd_executor.teardown()
+      cmd_executor.teardown(true)
     end),
   })
 end

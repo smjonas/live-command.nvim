@@ -17,29 +17,33 @@ local cached_lines
 ---@type boolean
 local prev_lazyredraw
 
-local setup = function()
+local setup = function(bufnr)
   prev_lazyredraw = vim.o.lazyredraw
   vim.o.lazyredraw = true
   if refetch_lines then
-    cached_lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
+    cached_lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
     refetch_lines = false
+  else
+    logger.trace("did not refetch for cmd " .. latest_cmd)
   end
   return cached_lines
 end
 
-M.teardown = function()
+M.teardown = function(do_refetch_lines)
   vim.o.lazyredraw = prev_lazyredraw
-  refetch_lines = true
+  refetch_lines = do_refetch_lines
   if vim.v.errmsg ~= "" then
     logger.error(("An error occurred in the preview function:\n%s"):format(vim.inspect(vim.v.errmsg)))
   end
 end
 
 local execute_command = function(cmd, bufnr)
-  local old_buf_lines = setup()
+  local old_buf_lines = setup(bufnr)
   local visible_line_range = { vim.fn.line("w0"), vim.fn.line("w$") }
-  vim.cmd(cmd)
-  M.teardown()
+  vim.api.nvim_buf_call(bufnr, function()
+    vim.cmd(cmd)
+  end)
+  -- M.teardown(false)
   visible_line_range = {
     math.max(visible_line_range[1], vim.fn.line("w0")),
     math.max(visible_line_range[2], vim.fn.line("w$")),
