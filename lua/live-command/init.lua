@@ -1,17 +1,8 @@
 local M = {}
 
----@class livecmd.Config.HlGroups
----@field insertion string|false
----@field deletion string|false
----@field change string|false
-
----@class livecmd.Config
----@field enable_highlighting boolean
----@field inline_highlighting boolean
----@field hl_groups livecmd.Config.HlGroups
-
 ---@type livecmd.Config
-M.defaults = {
+M.default_config = {
+  command_name = "Preview",
   enable_highlighting = true,
   inline_highlighting = true,
   hl_groups = {
@@ -21,10 +12,11 @@ M.defaults = {
   },
 }
 
-local cmd_executor = require("live-command.cmd_executor")
+local cmd_executor
 local api = vim.api
 
-local prev_lazyredraw
+---@type livecmd.Config
+local merged_config
 
 ---@type string[]
 local received_lines
@@ -52,25 +44,6 @@ local apply_highlights = function(bufnr, preview_ns, highlights, hl_groups)
   end
 end
 
-local create_preview_command = function()
-  api.nvim_create_user_command("Preview", function() end, {
-    nargs = "*",
-    preview = function(opts, preview_ns, preview_buf)
-      local cmd = opts.args
-      if received_lines then
-        api.nvim_buf_set_lines(0, 0, -1, false, received_lines)
-        received_lines = nil
-      end
-      if received_highlights then
-        apply_highlights(0, preview_ns, received_highlights, M.defaults.hl_groups)
-        received_highlights = nil
-      end
-      cmd_executor.submit_command(cmd, M.defaults, 0, M.receive_buffer)
-      return 2
-    end,
-  })
-end
-
 local refresh_cmd_preview = function()
   local backspace = api.nvim_replace_termcodes("<bs>", true, false, true)
   -- Hack to trigger command preview again after new buffer contents have been computed
@@ -79,10 +52,46 @@ local refresh_cmd_preview = function()
   end
 end
 
-M.receive_buffer = function(bufnr, lines, highlights)
+local on_receive_buffer = function(bufnr, lines, highlights)
   received_lines = lines
   received_highlights = highlights
   refresh_cmd_preview()
+end
+
+local preview_callback = function(opts, preview_ns, preview_buf)
+  local cmd = opts.args
+  if received_lines then
+    api.nvim_buf_set_lines(0, 0, -1, false, received_lines)
+    received_lines = nil
+  end
+  if received_highlights then
+    apply_highlights(0, preview_ns, received_highlights, merged_config.hl_groups)
+    received_highlights = nil
+  end
+  cmd_executor.submit_command(cmd, merged_config, 0, on_receive_buffer)
+  return 2
+end
+
+M.create_preview_command = function(cmd_name, cmd_to_run)
+  ---@type string
+  local cmd_string
+  vim.validate {
+    cmd_name = { cmd_name, "string" },
+    cmd_to_run = { cmd_to_run, { "string", "function" } },
+  }
+  cmd_to_run = type(cmd_to_run) == "string" and function()
+    return cmd_to_run
+  end or cmd_to_run
+
+  api.nvim_create_user_command(cmd_name, function(cmd)
+    vim.cmd(cmd_string)
+  end, {
+    nargs = "*",
+    preview = function(opts, preview_ns, preview_buf)
+      cmd_string = cmd_to_run(opts)
+      return preview_callback(opts, preview_ns, preview_buf)
+    end,
+  })
 end
 
 local create_autocmds = function()
@@ -97,7 +106,8 @@ local create_autocmds = function()
   })
 end
 
-M.setup = function()
+---@param user_config livecmd.Config?
+M.setup = function(user_config)
   if vim.fn.has("nvim-0.8.0") ~= 1 then
     vim.notify(
       "[live-command] This plugin requires at least Neovim 0.8. Please upgrade to a more recent vers1ion of Neovim.",
@@ -105,7 +115,13 @@ M.setup = function()
     )
     return
   end
-  create_preview_command()
+  cmd_executor = require("live-command.cmd_executor")
+  merged_config = vim.tbl_deep_extend("force", M.default_config, user_config or {})
+  require("live-command.config_validator").validate_config(merged_config)
+  -- Creates a :Preview command that simply executes its arguments as a command
+  M.create_preview_command(merged_config.command_name, function(opts)
+    return opts.args
+  end)
   create_autocmds()
 end
 
