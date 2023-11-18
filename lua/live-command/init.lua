@@ -73,22 +73,29 @@ local preview_callback = function(opts, preview_ns, preview_buf)
 end
 
 M.create_preview_command = function(cmd_name, cmd_to_run)
-  ---@type string
-  local cmd_string
+  ---@type string|table
+  local cmd
   vim.validate {
     cmd_name = { cmd_name, "string" },
     cmd_to_run = { cmd_to_run, { "string", "function" } },
   }
-  cmd_to_run = type(cmd_to_run) == "string" and function()
-    return cmd_to_run
-  end or cmd_to_run
+  if type(cmd_to_run) == "string" then
+    local original_cmd_name = cmd_to_run
+    cmd_to_run = function(opts)
+      -- Inherit all arguments except the cmd to execute from the user command
+      opts.cmd = original_cmd_name
+      return opts
+    end
+  end
 
   api.nvim_create_user_command(cmd_name, function(cmd)
-    vim.cmd(cmd_string)
+    vim.print(cmd)
+      vim.g.kk = cmd
+    vim.cmd(cmd)
   end, {
     nargs = "*",
     preview = function(opts, preview_ns, preview_buf)
-      cmd_string = cmd_to_run(opts)
+      cmd = cmd_to_run(opts)
       return preview_callback(opts, preview_ns, preview_buf)
     end,
   })
