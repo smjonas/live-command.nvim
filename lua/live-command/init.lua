@@ -18,10 +18,10 @@ local api = vim.api
 ---@type livecmd.Config
 local merged_config
 
----@type string[]
+---@type string[]?
 local received_lines
 
----@type livecmd.Highlight[]
+---@type livecmd.Highlight[]?
 local received_highlights
 
 ---@param bufnr number
@@ -72,31 +72,32 @@ local preview_callback = function(opts, preview_ns, preview_buf)
   return 2
 end
 
+M._test_mode = false
+
+---@param cmd_name string
+---@param cmd_to_run string|fun(table):string
 M.create_preview_command = function(cmd_name, cmd_to_run)
-  ---@type string|table
-  local cmd
   vim.validate {
     cmd_name = { cmd_name, "string" },
     cmd_to_run = { cmd_to_run, { "string", "function" } },
   }
+  ---@type table
+  local cmd
   if type(cmd_to_run) == "string" then
-    local original_cmd_name = cmd_to_run
-    cmd_to_run = function(opts)
-      -- Inherit all arguments except the cmd to execute from the user command
-      opts.cmd = original_cmd_name
-      return opts
-    end
+    cmd = api.nvim_parse_cmd(cmd_to_run, {})
   end
 
-  api.nvim_create_user_command(cmd_name, function(cmd)
-    vim.print(cmd)
-      vim.g.kk = cmd
-    vim.cmd(cmd)
+  api.nvim_create_user_command(cmd_name, function()
+    -- vim.g.kekw = 2
+    -- assert(cmd_value)
+    vim.cmd("norm daw")
   end, {
     nargs = "*",
     preview = function(opts, preview_ns, preview_buf)
-      cmd = cmd_to_run(opts)
-      return preview_callback(opts, preview_ns, preview_buf)
+      if type(cmd_to_run) == "function" then
+        cmd = api.nvim_parse_cmd(cmd_to_run(opts), {})
+      end
+      return preview_callback(cmd, preview_ns, preview_buf)
     end,
   })
 end
@@ -126,9 +127,11 @@ M.setup = function(user_config)
   merged_config = vim.tbl_deep_extend("force", M.default_config, user_config or {})
   require("live-command.config_validator").validate_config(merged_config)
   -- Creates a :Preview command that simply executes its arguments as a command
-  M.create_preview_command(merged_config.command_name, function(opts)
-    return opts.args
+  M.create_preview_command(merged_config.command_name, function(cmd_opts)
+    -- return cmd_opts.args
+    return "norm daw"
   end)
+
   create_autocmds()
 end
 
