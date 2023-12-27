@@ -1,5 +1,7 @@
 local M = {}
 
+local user_command = require("live-command.user_command")
+
 ---@class livecmd.Config.HlGroups
 ---@field insertion string|false
 ---@field deletion string|false
@@ -19,6 +21,9 @@ M.validate_config = function(config)
     inline_highlighting = { config.inline_highlighting, "boolean" },
     hl_groups = { config.hl_groups, "table" },
   }
+  user_command.register_argument_handler("help", function()
+    print("Help")
+  end)
 end
 
 return M
