@@ -1,5 +1,5 @@
 # live-command.nvim
-![version](https://img.shields.io/badge/version-1.2.1-brightgreen)
+![version](https://img.shields.io/badge/version-2.0.0-brightgreen)
 
 Text editing in Neovim with immediate visual feedback: view the effects of any command on your buffer contents live. Preview macros, the `:norm` command & more!
 
@@ -18,25 +18,55 @@ work for you. This includes viewing **individual insertions, changes and deletio
 ## Requirements
 Neovim 0.8+
 
-## :rocket: Getting started
-Install using your favorite package manager and call the setup function with a table of
-commands to create. Here is an example that creates a previewable `:Norm` command:
+## :inbox_tray: Installation
+Install using your favorite package manager and call the `setup` function:
+
+<details>
+    <summary>lazy.nvim</summary>
+
 ```lua
 use {
   "smjonas/live-command.nvim",
-  -- live-command supports semantic versioning via tags
-  -- tag = "1.*",
+  -- live-command supports semantic versioning via Git tags
+  -- tag = "2.*",
   config = function()
-    require("live-command").setup {
-      commands = {
-        Norm = { cmd = "norm" },
-      },
-    }
+    require("live-command").setup()
   end,
 }
 ```
+</details>
 
-## :gear: Usage and Customization
+<details>
+    <summary>vim-plug</summary>
+
+```vim
+Plug 'smjonas/live-command.nvim'
+```
+Somewhere in your init.lua, you will need to call the setup function:
+```lua
+require("live-command").setup()
+```
+</details>
+
+## :rocket: Getting started
+### Basic Usage
+The simplest way to use **live-command** is with the provided `:Preview` command.
+For instance, `:Preview delete` will show you a preview of deleting the current line.
+You can also pass a count or a range to the command, e.g. `:'<,'>Preview norm A;` will
+show the effect of appending a semicolon to every line selected in visual mode.
+
+### Creating Previewable Commands
+For a more convenient experience, **live-command** allows you to create custom previewable commands.
+This is done by passing a list of commands to the setup function.
+For example, you can define a custom `:Norm` command that can be previewed as follows:
+```lua
+require("live-command").setup {
+  commands = {
+    Norm = { cmd = "norm" },
+  },
+}
+```
+
 Each command you want to preview requires a name (must be upper-case) and the name of
 an existing command that is run on each keypress.
 
@@ -66,7 +96,9 @@ require("live-command").setup {
   commands = commands,
 }
 ```
-\
+
+## :gear: Customization
+
 All of the following options can be set globally (for all created commands), or per command.
 
 To change the default options globally, use the `defaults` table. The defaults are:
