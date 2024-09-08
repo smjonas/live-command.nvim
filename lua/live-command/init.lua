@@ -74,29 +74,17 @@ end
 
 M._test_mode = false
 
-local get_command_string = function(cmd_to_run, cmd_dict)
-  vim.validate {
-    cmd_to_run = { cmd_to_run, { "string", "function" } },
-  }
-  if type(cmd_to_run) == "string" then
-    return cmd_to_run
-  end
-  return cmd_to_run(cmd_dict)
-end
+---@class livecmd.Command
+---@field cmd string
 
 ---@param cmd_name string
----@param cmd_to_run string|fun():string
-M.create_preview_command = function(cmd_name, cmd_to_run)
-  vim.validate {
-    cmd_name = { cmd_name, "string" },
-  }
-  api.nvim_create_user_command(cmd_name, function(cmd_dict)
-    vim.cmd(get_command_string(cmd_to_run, cmd_dict))
+M.create_preview_command = function(cmd_name)
+  api.nvim_create_user_command(cmd_name, function(cmd)
+    vim.cmd(cmd.args)
   end, {
     nargs = "*",
     preview = function(opts, preview_ns, preview_buf)
-      local cmd_string = get_command_string(cmd_to_run, opts)
-      return preview_callback(cmd_string, preview_ns, preview_buf)
+      return preview_callback(opts, preview_ns, preview_buf)
     end,
   })
 end
@@ -125,10 +113,7 @@ M.setup = function(user_config)
   cmd_executor = require("live-command.cmd_executor")
   merged_config = vim.tbl_deep_extend("force", M.default_config, user_config or {})
   require("live-command.config_validator").validate_config(merged_config)
-  -- Creates a :Preview command that simply executes its arguments as a command
-  M.create_preview_command(merged_config.command_name, function(cmd_dict)
-    return cmd_dict.args
-  end)
+  M.create_preview_command(merged_config.command_name)
   create_autocmds()
 end
 
