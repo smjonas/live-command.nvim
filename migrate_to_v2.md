@@ -1,6 +1,6 @@
 # Migration to v2.0
 This is a guide for users that want to migrate to version `2.0` of `live-command`.
-If you want to stay on version `1.0`, you can also pin the plugin to the tag `v1.0`.
+If you want to stay on the previous major version, you can pin the plugin to the tag [`1.x`](https://github.com/smjonas/live-command.nvim/releases/tag/1.x).
 
 ## What has changed in version 2.0?
 Version 2.0 is a rewrite of the plugin for better maintainability and future extensibility.
@@ -8,7 +8,7 @@ It simplifies the user-facing API while improving the architecture of the plugin
 
 **Breaking change**:
 - Custom command specifications now only consist of a `cmd` value (a string); `args`
-  and `range` have been removed. See
+  and `range` have been removed. See [next section](#how-can-i-migrate-from-older-versions).
 
 **New feature**:
 - New generic `:Preview` command that allows to preview any command without having to
@@ -31,8 +31,8 @@ local commands = {
   },
 }
 ```
-In `v2.0`, you have two options:
-1. Define a command `Norm = { cmd = "norm" }` and use it as `:Norm <count>@<register>` (e.g., `:Norm 5@a` to apply macro stored in register `a` five times)
+In version `2.0`, you have two options:
+1. Define a command `Norm = { cmd = "norm" }` and use it as `:Norm <count>@<register>` (e.g., `:Norm 5@a` to apply macro stored in register `a` five times).
 2. Define a custom `:Reg` user command like this that works just like the old version:
 
 <details>
