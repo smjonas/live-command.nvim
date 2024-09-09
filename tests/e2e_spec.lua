@@ -38,6 +38,12 @@ describe("create_preview_command works for", function()
     assert.are_same({ "First line", "line" }, get_lines())
   end)
 
+  it("norm command with range", function()
+    create_preview_cmd("Norm", { cmd = "norm" })
+    vim.cmd("1,2Norm daw")
+    assert.are_same({ "line", "line" }, get_lines())
+  end)
+
   it("g command", function()
     create_preview_cmd("G", { cmd = "g" })
     vim.cmd("G/Second/d")

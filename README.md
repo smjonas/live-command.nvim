@@ -70,34 +70,7 @@ require("live-command").setup {
 ```
 
 Each command you want to preview requires a name (must be upper-case) and the name of
-an existing command that is run on each keypress.
-
-Here is a list of available settings:
-
-| Key         | Type     | Description
-| ----------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------
-| cmd         | string   | The name of an existing command to preview.
-| args        | string? \| function(arg: string?, opts: table) -> string | Arguments passed to the command. If a function, takes in the options passed to the command and must return the transformed argument(s) `cmd` will be called with. `opts` has the same structure as the `opts` table passed to the `nvim_create_user_command` callback function. If `nil`, the arguments are supplied from the command-line while the user is typing the command.
-| range       | string?  | The range to prepend to the command. Set this to `""` if you don't want the new command to receive a count, e.g. when turning `:9Reg a` into `:norm 9@a`. If `nil`, the range will be supplied from the command entered.
-
-### Example
-The following example creates a `:Reg` command which allows you to preview the effects of macros (e.g. `:5Reg a` to run macro `a` five times).
-```lua
-local commands = {
-  Reg = {
-    cmd = "norm",
-    -- This will transform ":5Reg a" into ":norm 5@a"
-    args = function(opts)
-      return (opts.count == -1 and "" or opts.count) .. "@" .. opts.args
-    end,
-    range = "",
-  },
-}
-
-require("live-command").setup {
-  commands = commands,
-}
-```
+an existing command that is run on each keypress via the `cmd` field.
 
 ## :gear: Customization
 

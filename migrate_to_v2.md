@@ -1,6 +1,6 @@
 # Migration to v2.0
 This is a guide for users that want to migrate to version `2.0` of `live-command`.
-If you want to stay on the previous major version, you can pin the plugin to the tag [`1.x`](https://github.com/smjonas/live-command.nvim/releases/tag/1.x).
+If you want to avoid any breaking changes, you can pin the plugin to the tag [`1.x`](https://github.com/smjonas/live-command.nvim/releases/tag/1.x).
 
 ## What has changed in version 2.0?
 Version 2.0 is a rewrite of the plugin for better maintainability and future extensibility.
