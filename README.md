@@ -1,6 +1,8 @@
 # live-command.nvim
 ![version](https://img.shields.io/badge/version-2.0.0-brightgreen)
 
+> :exclamation: Version 2.0 has been released with breaking changes! Please check out the [migration guide](./migrate_to_v2.md).
+
 Text editing in Neovim with immediate visual feedback: view the effects of any command on your buffer contents live. Preview macros, the `:norm` command & more!
 
 ![live-command.nvim demo video](https://user-images.githubusercontent.com/40792180/235201812-adc95327-65cc-4ae4-8c2e-804853dd0c02.gif)
