@@ -58,8 +58,8 @@ local on_receive_buffer = function(bufnr, lines, highlights)
   refresh_cmd_preview()
 end
 
-local preview_callback = function(opts, preview_ns, preview_buf)
-  local cmd = opts.args
+---@param cmd string
+local preview_callback = function(cmd, preview_ns, preview_buf)
   if received_lines then
     api.nvim_buf_set_lines(0, 0, -1, false, received_lines)
     received_lines = nil
@@ -74,17 +74,38 @@ end
 
 M._test_mode = false
 
----@class livecmd.Command
----@field cmd string
-
----@param cmd_name string
-M.create_preview_command = function(cmd_name)
-  api.nvim_create_user_command(cmd_name, function(cmd)
+---@param preview_cmd_name string
+M.create_preview_command = function(preview_cmd_name)
+  api.nvim_create_user_command(preview_cmd_name, function(cmd)
     vim.cmd(cmd.args)
   end, {
     nargs = "*",
     preview = function(opts, preview_ns, preview_buf)
-      return preview_callback(opts, preview_ns, preview_buf)
+      local cmd_to_preview = opts.args
+      return preview_callback(cmd_to_preview, preview_ns, preview_buf)
+    end,
+  })
+end
+
+---@class livecmd.CommandOpts
+---@field cmd string
+
+---@param cmd_name string
+---@param cmd_opts livecmd.CommandOpts
+M.create_previewable_command = function(cmd_name, cmd_opts)
+  api.nvim_create_user_command(cmd_name, function(cmd)
+    local range_string = (
+      cmd.range == 2 and ("%s,%s"):format(cmd.line1, cmd.line2)
+      or cmd.range == 1 and tostring(cmd.line1)
+      or ""
+    )
+    vim.cmd(range_string .. cmd_opts.cmd .. " " .. cmd.args)
+  end, {
+    nargs = "*",
+    range = true,
+    preview = function(cmd, preview_ns, preview_buf)
+      cmd.name = cmd_opts.cmd
+      return preview_callback(cmd, preview_ns, preview_buf)
     end,
   })
 end
