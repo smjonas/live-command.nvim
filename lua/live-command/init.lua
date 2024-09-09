@@ -10,6 +10,7 @@ M.default_config = {
     deletion = "DiffDelete",
     change = "DiffChange",
   },
+  commands = {},
 }
 
 local cmd_executor
@@ -72,6 +73,10 @@ local preview_callback = function(cmd, preview_ns, preview_buf)
   return 2
 end
 
+local get_range_string = function(cmd)
+  return (cmd.range == 2 and ("%s,%s"):format(cmd.line1, cmd.line2) or cmd.range == 1 and tostring(cmd.line1) or "")
+end
+
 M._test_mode = false
 
 ---@param preview_cmd_name string
@@ -87,27 +92,29 @@ M.create_preview_command = function(preview_cmd_name)
   })
 end
 
----@class livecmd.CommandOpts
+---@class livecmd.CommandSpec
 ---@field cmd string
 
 ---@param cmd_name string
----@param cmd_opts livecmd.CommandOpts
-M.create_previewable_command = function(cmd_name, cmd_opts)
+---@param cmd_specs livecmd.CommandSpec
+M.create_previewable_command = function(cmd_name, cmd_specs)
   api.nvim_create_user_command(cmd_name, function(cmd)
-    local range_string = (
-      cmd.range == 2 and ("%s,%s"):format(cmd.line1, cmd.line2)
-      or cmd.range == 1 and tostring(cmd.line1)
-      or ""
-    )
-    vim.cmd(range_string .. cmd_opts.cmd .. " " .. cmd.args)
+    vim.cmd(get_range_string(cmd) .. cmd_specs.cmd .. " " .. cmd.args)
   end, {
     nargs = "*",
     range = true,
     preview = function(cmd, preview_ns, preview_buf)
-      cmd.name = cmd_opts.cmd
-      return preview_callback(cmd, preview_ns, preview_buf)
+      local cmd_to_preview = get_range_string(cmd) .. cmd_specs.cmd .. " " .. cmd.args
+      return preview_callback(cmd_to_preview, preview_ns, preview_buf)
     end,
   })
+end
+
+---@param cmd_specs table<string, livecmd.CommandSpec>
+local create_previewable_commands = function(cmd_specs)
+  for cmd_name, cmd_spec in pairs(cmd_specs) do
+    M.create_previewable_command(cmd_name, cmd_spec)
+  end
 end
 
 local create_autocmds = function()
@@ -126,7 +133,7 @@ end
 M.setup = function(user_config)
   if vim.fn.has("nvim-0.8.0") ~= 1 then
     vim.notify(
-      "[live-command] This plugin requires at least Neovim 0.8. Please upgrade to a more recent vers1ion of Neovim.",
+      "[live-command] This plugin requires at least Neovim 0.8. Please upgrade to a more recent version of Neovim.",
       vim.log.levels.ERROR
     )
     return
@@ -135,6 +142,7 @@ M.setup = function(user_config)
   merged_config = vim.tbl_deep_extend("force", M.default_config, user_config or {})
   require("live-command.config_validator").validate_config(merged_config)
   M.create_preview_command(merged_config.command_name)
+  create_previewable_commands(merged_config.commands)
   create_autocmds()
 end
 

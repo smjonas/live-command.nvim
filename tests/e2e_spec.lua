@@ -43,6 +43,16 @@ describe("create_preview_command works for", function()
     vim.cmd("G/Second/d")
     assert.are_same({ "First line" }, get_lines())
   end)
+
+  it("command spec in config", function()
+    live_command.setup {
+      commands = {
+        ABC = { cmd = "norm" },
+      },
+    }
+    vim.cmd("ABC daw")
+    assert.are_same({ "line", "Second line" }, get_lines())
+  end)
 end)
 
 describe(":Preview works for", function()
