@@ -1,27 +1,27 @@
 # live-command.nvim
 ![version](https://img.shields.io/badge/version-2.0.0-brightgreen)
 
-> :exclamation: Version 2.0 has been released with breaking changes! Please check out the [migration guide](./migrate_to_v2.md).
+> :exclamation: Version 2.0 has been released with breaking changes! Be sure to check out the [migration guide](./migrate_to_v2.md).
 
-Text editing in Neovim with immediate visual feedback: view the effects of any command on your buffer contents live. Preview macros, the `:norm` command & more!
+Text editing in Neovim with immediate visual feedback: see the effects of any command on your buffer in real-time. Preview macros, the `:norm` command, and more!
 
 ![live-command.nvim demo video](https://user-images.githubusercontent.com/40792180/235201812-adc95327-65cc-4ae4-8c2e-804853dd0c02.gif)
 <p><sub>Theme: <a href="https://github.com/folke/tokyonight.nvim">tokyonight.nvim</a></sub></p>
 
 ## :sparkles: Motivation and Features
-In Neovim version 0.8, the `command-preview` feature has been introduced.
+In Neovim version 0.8, the `command-preview` feature was introduced.
 Despite its name, it does not enable automatic previewing of any command.
-Instead, users must manually update the buffer text and set highlights *for each command*.
+Instead, users must manually update the buffer text and set highlights *for each command* they wish to preview.
 
-This plugin aims to address this issue by offering a **simple API for creating previewable commands**
-in Neovim. Simply provide the command you want to preview and live-command will do all the
-work for you. This includes viewing **individual insertions, changes and deletions** as you type.
+This plugin addresses that limitation by offering a **simple API for creating previewable commands**
+in Neovim. Just specify the command you want to preview and live-command will handle the rest.
+This includes viewing **individual insertions, changes and deletions** as you type.
 
 ## Requirements
 Neovim 0.8+
 
 ## :inbox_tray: Installation
-Install using your favorite package manager and call the `setup` function:
+Install via your favorite package manager and call the `setup` function:
 
 <details>
     <summary>lazy.nvim</summary>
@@ -44,7 +44,7 @@ use {
 ```vim
 Plug 'smjonas/live-command.nvim'
 ```
-Somewhere in your init.lua, you will need to call the setup function:
+In your `init.lua`, call the setup function:
 ```lua
 require("live-command").setup()
 ```
@@ -52,15 +52,15 @@ require("live-command").setup()
 
 ## :rocket: Getting started
 ### Basic Usage
-The simplest way to use **live-command** is with the provided `:Preview` command.
-For instance, `:Preview delete` will show you a preview of deleting the current line.
-You can also pass a count or a range to the command, e.g. `:'<,'>Preview norm A;` will
-show the effect of appending a semicolon to every line selected in visual mode.
+The easiest way to use **live-command** is with the provided `:Preview` command.
+For example, `:Preview delete` will show you a preview of deleting the current line.
+You can also provide a count or a range to the command, such as `:'<,'>Preview norm A;`, which
+shows the effect of appending a semicolon to every visually selected line.
 
 ### Creating Previewable Commands
-For a more convenient experience, **live-command** allows you to create custom previewable commands.
-This is done by passing a list of commands to the setup function.
-For example, you can define a custom `:Norm` command that can be previewed as follows:
+For a more convenient experience, **live-command** allows you to define custom previewable commands.
+This can be done by passing a list of commands to the `setup` function.
+For instance, to define a custom `:Norm` command that can be previewed, use the following:
 ```lua
 require("live-command").setup {
   commands = {
@@ -69,14 +69,14 @@ require("live-command").setup {
 }
 ```
 
-Each command you want to preview requires a name (must be upper-case) and the name of
-an existing command that is run on each keypress via the `cmd` field.
+Each command you want to preview needs a name (which must be uppercase) and
+an existing command to run on each keypress, specified via the `cmd` field.
 
 ## :gear: Customization
 
-All of the following options can be set globally (for all created commands), or per command.
+All of the following options can be set globally (affecting all custom commands), or per command.
 
-To change the default options globally, use the `defaults` table. The defaults are:
+To change the default options globally, use the `defaults` table. The default settings are:
 
 ```lua
 require("live-command").setup {
@@ -98,7 +98,7 @@ require("live-command").setup {
 
 Default: `true`
 
-Whether highlights should be shown. If `false`, only text changes are shown.
+Determines whether highlights should be shown. If `false`, only text changes are shown, without any highlights.
 
 ---
 
@@ -106,9 +106,9 @@ Whether highlights should be shown. If `false`, only text changes are shown.
 
 Default: `true`
 
-If `true`, differing lines will be compared in a second run of the diff algorithm. This
-can result in multiple highlights per line. Otherwise, the whole line will be highlighted as
-a single change highlight.
+If `true`, differing lines will be compared in a second run of the diff algorithm
+to identify smaller differences. This can result in multiple highlights per line.
+If set to `false`, the whole line will be highlighted as a single change.
 
 ---
 
@@ -116,10 +116,10 @@ a single change highlight.
 
 Default: `{ insertion = "DiffAdd", deletion = "DiffDelete", change = "DiffChange" }`
 
-A list of highlight groups per edit type (insertion, deletion or change) used for highlighting buffer changes.
-The table will be merged with the defaults so you can omit any keys that are the same as the default.
-If a value is set to `false`, no highlights will be shown for that type. If `hl_groups.deletion` is `false`,
-deletion edits will not be undone which is otherwise done to make the text changes visible.
+A table mapping edit types (insertion, deletion or change) to highlight groups used for highlighting buffer changes.
+This table is merged with the defaults, allowing you to omit any keys that match the default.
+If a value is set to `false`, no highlights will be shown for that type.
+If `hl_groups.deletion` is `false`, deletion edits will not be undone, so deleted text won't be highlighted.
 
 ---
 
