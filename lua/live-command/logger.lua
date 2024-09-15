@@ -1,6 +1,8 @@
 ---@class Logger
 local M = {}
 
+local user_command = require("live-command.user_command")
+
 ---@type Log[]
 local logs = {}
 
@@ -20,7 +22,7 @@ M.error = function(msg)
   table.insert(logs, { msg = msg, level = vim.log.levels.ERROR })
 end
 
-vim.api.nvim_create_user_command("LiveCommandLog", function()
+local show_log = function()
   local msgs = {}
   for i, log in ipairs(logs) do
     local level = ""
@@ -31,8 +33,9 @@ vim.api.nvim_create_user_command("LiveCommandLog", function()
     end
     msgs[i] = level .. (type(log.msg) == "function" and log.msg() or log.msg)
   end
-
   vim.notify(table.concat(msgs, "\n"))
-end, { nargs = 0 })
+end
+
+user_command.register_argument_handler("log", show_log)
 
 return M
