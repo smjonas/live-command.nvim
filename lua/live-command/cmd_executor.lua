@@ -4,7 +4,7 @@ local differ = require("live-command.differ")
 local highlighter = require("live-command.highlighter")
 local logger = require("live-command.logger")
 
----@type string
+---@type string?
 local latest_cmd
 
 local running = false
@@ -30,6 +30,7 @@ local setup = function(bufnr)
 end
 
 M.teardown = function(do_refetch_lines)
+  latest_cmd = nil
   vim.o.lazyredraw = prev_lazyredraw
   refetch_lines = do_refetch_lines
   if vim.v.errmsg ~= "" then
