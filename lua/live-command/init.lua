@@ -87,7 +87,7 @@ M.create_preview_command = function(preview_cmd_name)
     nargs = "*",
     preview = function(opts, preview_ns, preview_buf)
       local cmd_to_preview = opts.args
-      return preview_callback(cmd_to_preview, preview_ns, preview_buf)
+      return M.preview_callback(cmd_to_preview, preview_ns, preview_buf)
     end,
   })
 end
