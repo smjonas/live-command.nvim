@@ -1,5 +1,5 @@
-# Migration to v2.0
-This is a guide for users looking to migrate to version `2.0` of `live-command`.
+# Migration to v2.x
+This is a guide for users looking to migrate to version `2.x` of `live-command`.
 If you'd prefer to avoid breaking changes, you can pin the plugin to tag [`1.x`](https://github.com/smjonas/live-command.nvim/releases/tag/1.x) tag.
 
 ## What's new in version 2.0?
@@ -14,7 +14,7 @@ It introduces a simplified user-facing API, alongside improvements to the archit
 - A new generic `:Preview` command allows you to preview any command without needing to
   define it in your configuration. This is useful for testing `live-command`'s capabilities
   or for previewing commands you use infrequently, where creating a separate user command doesn't
-  seem necessary. The command does not accept a range or count. Example: `:Preview '<,'>norm daw`
+  seem necessary. The command accepts a range or count. Example: `:'<,'>Preview norm daw`
   previews the deletion of the first word in the selected lines.
 
 ## How can I migrate from older versions?
@@ -31,7 +31,7 @@ local commands = {
   },
 }
 ```
-In version `2.0`, you have two options:
+In version `2.x`, you have two options:
 1. Define a command `Norm = { cmd = "norm" }` and use it as `:Norm <count>@<register>` (e.g., `:Norm 5@a` to apply macro stored in register `a` five times).
 2. Alternatively, define a custom `:Reg` user command that bevaves like the old version:
 

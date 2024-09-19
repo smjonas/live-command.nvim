@@ -57,8 +57,13 @@ describe(":Preview works for", function()
   end)
 
   it("norm command with count", function()
-    vim.cmd("Preview 2norm daw")
+    vim.cmd("2Preview norm daw")
     assert.are_same({ "First line", "line" }, get_lines())
+  end)
+
+  it("norm command with range", function()
+    vim.cmd("1,2Preview norm daw")
+    assert.are_same({ "line", "line" }, get_lines())
   end)
 
   it("g command", function()

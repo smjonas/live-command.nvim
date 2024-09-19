@@ -73,7 +73,7 @@ M.preview_callback = function(cmd, preview_ns, preview_buf)
   return 2
 end
 
-M.get_range_string = function(cmd)
+M._get_range_string = function(cmd)
   return (cmd.range == 2 and ("%s,%s"):format(cmd.line1, cmd.line2) or cmd.range == 1 and tostring(cmd.line1) or "")
 end
 
@@ -82,11 +82,12 @@ M._test_mode = false
 ---@param preview_cmd_name string
 M.create_preview_command = function(preview_cmd_name)
   api.nvim_create_user_command(preview_cmd_name, function(cmd)
-    vim.cmd(cmd.args)
+    vim.cmd(M._get_range_string(cmd) .. cmd.args)
   end, {
     nargs = "*",
+    range = true,
     preview = function(opts, preview_ns, preview_buf)
-      local cmd_to_preview = opts.args
+      local cmd_to_preview = M._get_range_string(opts) .. opts.args
       return M.preview_callback(cmd_to_preview, preview_ns, preview_buf)
     end,
   })
@@ -99,12 +100,12 @@ end
 ---@param cmd_specs livecmd.CommandSpec
 M.create_previewable_command = function(cmd_name, cmd_specs)
   api.nvim_create_user_command(cmd_name, function(cmd)
-    vim.cmd(M.get_range_string(cmd) .. cmd_specs.cmd .. " " .. cmd.args)
+    vim.cmd(M._get_range_string(cmd) .. cmd_specs.cmd .. " " .. cmd.args)
   end, {
     nargs = "*",
     range = true,
-    preview = function(cmd, preview_ns, preview_buf)
-      local cmd_to_preview = M.get_range_string(cmd) .. cmd_specs.cmd .. " " .. cmd.args
+    preview = function(opts, preview_ns, preview_buf)
+      local cmd_to_preview = M._get_range_string(opts) .. cmd_specs.cmd .. " " .. opts.args
       return M.preview_callback(cmd_to_preview, preview_ns, preview_buf)
     end,
   })
@@ -146,6 +147,6 @@ M.setup = function(user_config)
   create_autocmds()
 end
 
-M.version = "2.0.0"
+M.version = "2.1.0"
 
 return M

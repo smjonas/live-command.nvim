@@ -1,5 +1,5 @@
 # live-command.nvim
-![version](https://img.shields.io/badge/version-2.0.0-brightgreen)
+![version](https://img.shields.io/badge/version-2.1.0-brightgreen)
 
 > :exclamation: Version 2.0 has been released with breaking changes! Be sure to check out the [migration guide](./migrate_to_v2.md).
 
