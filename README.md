@@ -1,5 +1,5 @@
 # live-command.nvim
-![version](https://img.shields.io/badge/version-2.1.0-brightgreen)
+![version](https://img.shields.io/badge/version-2.2.0-brightgreen)
 
 > :exclamation: Version 2.0 has been released with breaking changes! Be sure to check out the [migration guide](./migrate_to_v2.md).
 
@@ -74,20 +74,17 @@ an existing command to run on each keypress, specified via the `cmd` field.
 
 ## :gear: Customization
 
-All of the following options can be set globally (affecting all custom commands), or per command.
-
-To change the default options globally, use the `defaults` table. The default settings are:
+If you wish to customize the plugin, supply any settings that differ from the defaults
+to the `setup` function. The following shows the default options:
 
 ```lua
 require("live-command").setup {
-  defaults = {
-    enable_highlighting = true,
-    inline_highlighting = true,
-    hl_groups = {
-      insertion = "DiffAdd",
-      deletion = "DiffDelete",
-      change = "DiffChange",
-    },
+  enable_highlighting = true,
+  inline_highlighting = true,
+  hl_groups = {
+    insertion = "DiffAdd",
+    deletion = "DiffDelete",
+    change = "DiffChange",
   },
 }
 ```

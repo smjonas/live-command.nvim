@@ -147,6 +147,6 @@ M.setup = function(user_config)
   create_autocmds()
 end
 
-M.version = "2.1.0"
+M.version = "2.2.0"
 
 return M
