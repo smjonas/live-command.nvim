@@ -72,6 +72,12 @@ require("live-command").setup {
 Each command you want to preview needs a name (which must be uppercase) and
 an existing command to run on each keypress, specified via the `cmd` field.
 
+If you want to keep the name of existing commands, you can assign an alias like so:
+
+```lua
+vim.cmd("cnoreabbrev norm Norm")
+```
+
 ## :gear: Customization
 
 If you wish to customize the plugin, supply any settings that differ from the defaults
