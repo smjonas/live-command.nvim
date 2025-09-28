@@ -113,13 +113,11 @@ end
 
 ---@param config livecmd.Config
 M.validate_config = function(config)
-  vim.validate {
-    command_name = { config.command_name, "string" },
-    enable_highlighting = { config.enable_highlighting, "boolean" },
-    inline_highlighting = { config.inline_highlighting, "boolean" },
-    hl_groups = { config.hl_groups, "table" },
-    commands = { config.commands, "table" },
-  }
+  vim.validate("command_name", config.command_name, "string")
+  vim.validate("enable_highlighting", config.enable_highlighting, "boolean")
+  vim.validate("inline_highlighting", config.inline_highlighting, "boolean")
+  vim.validate("hl_groups", config.hl_groups, "table")
+  vim.validate("commands", config.commands, "table")
   if are_unsupported_features_used(config) then
     vim.notify(
       '[live-command.nvim] Some unsupported features are used in your config. Please run ":LiveCommand diagnose" for details.',
