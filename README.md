@@ -27,13 +27,14 @@ Install via your favorite package manager and call the `setup` function:
     <summary>lazy.nvim</summary>
 
 ```lua
-use {
+return {
   "smjonas/live-command.nvim",
-  -- live-command supports semantic versioning via Git tags
-  -- tag = "2.*",
-  config = function()
-    require("live-command").setup()
-  end,
+  main = "live-command", -- Lazy thinks that MAIN is live_command for some reason
+  opts = {
+    commands = {
+      Norm = { cmd = "norm" },
+    },
+  },
 }
 ```
 </details>
