@@ -29,7 +29,7 @@ Install via your favorite package manager and call the `setup` function:
 ```lua
 return {
   "smjonas/live-command.nvim",
-  main = "live-command", -- Lazy thinks that MAIN is live_command for some reason
+  main = "live-command",
   opts = {
     commands = {
       Norm = { cmd = "norm" },
